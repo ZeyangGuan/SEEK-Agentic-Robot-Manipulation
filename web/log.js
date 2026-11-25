@@ -158,47 +158,71 @@
     const plot = document.querySelector('[data-versus-plot]');
     if (!plot || !compare) return;
     const direct = new Map(compare.tasks.map((task) => [task.name, task]));
-    const axis = make('div', 'vs-axis');
-    const area = make('div', 'vs-area');
-    [0, 25, 50, 75, 100].forEach((level) => {
-      const label = make('span', null, String(level));
-      label.style.setProperty('--y', `${level}%`);
-      axis.append(label);
-      const line = make('i', 'vs-gl');
-      line.style.setProperty('--y', `${level}%`);
-      area.append(line);
-    });
-    const groups = make('div', 'vs-groups');
-    const cats = make('div', 'vs-cats');
-    let index = 0;
-    data.summary.categories.forEach((category) => {
-      const tasks = data.tasks
+    const groupsOf = data.summary.categories.map((category) => ({
+      name: category.name,
+      tasks: data.tasks
         .filter((task) => task.category === category.name && direct.has(task.name))
-        .map((task) => ({ task, astra: direct.get(task.name).score }))
-        .sort((a, b) => (b.task.score - b.astra) - (a.task.score - a.astra) || b.task.score - a.task.score);
-      const group = make('div', 'vs-group');
-      group.style.flexGrow = String(tasks.length);
-      tasks.forEach(({ task, astra }) => {
-        const col = make('div', `vs-col${task.score < astra ? ' is-down' : ''}`);
-        col.title = `${task.name}: SEEK ${num(task.score)}, gpt-6.2-astra acting directly ${num(astra)}`;
-        col.style.setProperty('--a', `${astra}%`);
-        col.style.setProperty('--s', `${task.score}%`);
-        col.style.setProperty('--lo', `${Math.min(astra, task.score)}%`);
-        col.style.setProperty('--len', `${Math.abs(task.score - astra)}%`);
-        col.style.setProperty('--i', String(index));
-        index += 1;
-        col.append(make('i', 'vs-line'), make('i', 'vs-dot vs-astra'), make('i', 'vs-dot vs-seek'));
-        group.append(col);
+        .map((task) => ({ task, other: direct.get(task.name) }))
+        .sort((a, b) => (b.task.score - b.other.score) - (a.task.score - a.other.score) || b.task.score - a.task.score),
+    }));
+    const requestTop = Math.max(50, Math.ceil(Math.max(...groupsOf.flatMap((g) => g.tasks.map(({ task, other }) => Math.max(task.requests, other.requests)))) / 50) * 50);
+    const panels = [
+      { key: 'score', title: 'Task score', top: 100, step: 25, better: (s, a) => s >= a, unit: '' },
+      { key: 'requests', title: 'Model requests per episode', top: requestTop, step: 50, better: (s, a) => s <= a, unit: ' requests' },
+    ];
+    const children = [];
+    panels.forEach((panel, p) => {
+      const head = make('p', 'vs-title', panel.title);
+      const axis = make('div', 'vs-axis');
+      const area = make('div', 'vs-area');
+      for (let level = 0; level <= panel.top; level += panel.step) {
+        const y = `${(level / panel.top) * 100}%`;
+        const label = make('span', null, String(level));
+        label.style.setProperty('--y', y);
+        axis.append(label);
+        const line = make('i', 'vs-gl');
+        line.style.setProperty('--y', y);
+        area.append(line);
+      }
+      const groups = make('div', 'vs-groups');
+      let index = 0;
+      groupsOf.forEach((g) => {
+        const group = make('div', 'vs-group');
+        group.style.flexGrow = String(g.tasks.length);
+        g.tasks.forEach(({ task, other }) => {
+          const s = task[panel.key];
+          const a = other[panel.key];
+          const col = make('div', `vs-col${panel.better(s, a) ? '' : ' is-down'}`);
+          col.title = `${task.name}: SEEK ${num(s)}${panel.unit}, gpt-6.2-astra acting directly ${num(a)}${panel.unit}`;
+          const at = (value) => `${(value / panel.top) * 100}%`;
+          col.style.setProperty('--a', at(a));
+          col.style.setProperty('--s', at(s));
+          col.style.setProperty('--lo', at(Math.min(a, s)));
+          col.style.setProperty('--len', at(Math.abs(s - a)));
+          col.style.setProperty('--i', String(index));
+          index += 1;
+          col.append(make('i', 'vs-line'), make('i', 'vs-dot vs-astra'), make('i', 'vs-dot vs-seek'));
+          group.append(col);
+        });
+        groups.append(group);
       });
-      groups.append(group);
-      const label = make('span', null, category.name);
-      label.style.flexGrow = String(tasks.length);
-      cats.append(label);
+      area.append(groups);
+      const body = make('div', 'vs-body');
+      body.append(area);
+      if (p === panels.length - 1) {
+        const cats = make('div', 'vs-cats');
+        groupsOf.forEach((g) => {
+          const label = make('span', null, g.name);
+          label.style.flexGrow = String(g.tasks.length);
+          cats.append(label);
+        });
+        body.append(cats);
+      }
+      const row = make('div', `vs-panel vs-${panel.key}`);
+      row.append(head, axis, body);
+      children.push(row);
     });
-    area.append(groups);
-    const body = make('div', 'vs-body');
-    body.append(area, cats);
-    plot.replaceChildren(axis, body);
+    plot.replaceChildren(...children);
   };
 
   const render = ([data, compare]) => {

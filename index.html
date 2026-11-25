@@ -137,8 +137,8 @@
         <div class="stage stage-light">
           <video src="web/media/explainer.mp4" poster="web/media/explainer_poster.webp" width="1920" height="1080" controls playsinline preload="none"></video>
         </div>
-        <div class="demo-meta">
-          <p class="goal"><span>From the cube task step by step to the results on RoboDojo and on the real robot.</span></p>
+        <div class="demo-meta demo-meta-center">
+          <p class="note">From the cube task step by step to the results on RoboDojo and on the real robot.</p>
         </div>
       </div>
     </section>
@@ -156,8 +156,8 @@
       </div>
       <figure class="versus reveal" data-versus>
         <div class="versus-key" aria-hidden="true"><span class="k-astra">gpt-6.2-astra acting directly</span><span class="k-seek">SEEK after five attempts</span></div>
-        <div class="versus-plot" data-versus-plot role="img" aria-label="Task score on each of the 34 tasks, gpt-6.2-astra acting directly and SEEK after five attempts."></div>
-        <figcaption>Task score on each of the 34 tasks, ten episodes each, grouped by category. Each column is one task, from the model acting directly to SEEK. The <a href="#log">evaluation log</a> lists every episode.</figcaption>
+        <div class="versus-plot" data-versus-plot role="img" aria-label="Task score and model requests per episode on each of the 34 tasks, gpt-6.2-astra acting directly and SEEK after five attempts."></div>
+        <figcaption>Task score and model requests per episode on each of the 34 tasks, ten episodes each, grouped by category. Each column is one task, from the model acting directly to SEEK. The <a href="#log">evaluation log</a> lists every episode.</figcaption>
       </figure>
       <p class="body reveal">In the paper, with GPT-6 Astra on all 42 tasks, SEEK has the highest average score among the learned policies and agent-based methods compared.</p>
     </section>
@@ -314,7 +314,7 @@
           <p class="note">Left, GPT-6 Astra acting directly. Right, SEEK with the same model. One episode per task, sped up. The clocks show real time.</p>
         </div>
       </div>
-      <div class="stats stats-two reveal">
+      <div class="stats stats-left reveal">
         <div class="stat"><b><span class="from">66.9</span><span class="to-arrow">→</span>83.3</b><span>average task score over the four real-robot tasks, from the model acting directly to SEEK</span></div>
         <div class="stat"><b><span class="from">52.2</span><span class="to-arrow">→</span>34.4</b><span>model requests per episode</span></div>
       </div>
