@@ -27,13 +27,13 @@
     <div class="nav-in">
       <a class="brand" href="#top" aria-label="SEEK, top of page">S<span class="ee"><i>E</i><b>E</b><svg class="loop" viewBox="-46 -74 92 148" aria-hidden="true"><g class="loop-a"><path d="M-37.6-45.1A39 39 0 0 1 21.5-58.7"/><polygon points="31.6,-46.9 25.3,-66.9 22.1,-57.1 12.1,-54.6"/></g><g class="loop-b" transform="rotate(180)"><path d="M-37.6-45.1A39 39 0 0 1 21.5-58.7"/><polygon points="31.6,-46.9 25.3,-66.9 22.1,-57.1 12.1,-54.6"/></g></svg></span>K</a>
       <nav class="nav-links" aria-label="Sections">
+        <a href="#video">Video</a>
         <a href="#results">Results</a>
         <a href="#problem">Problem</a>
         <a href="#idea">Idea</a>
         <a href="#method">Method</a>
         <a href="#real">Real robot</a>
         <a href="#log">Log</a>
-        <a href="#video">Video</a>
       </nav>
       <div class="nav-side">
         <a href="#release">Paper</a>
@@ -126,6 +126,21 @@
         <summary>Abstract</summary>
         <p>General-purpose multimodal foundation models enable robots to adapt during deployment from observations and execution feedback, without task-specific demonstrations or training. However, the robot retains what it learns only in the model’s working context. Once the task ends, it loses this execution knowledge, such as how to carry a bowl between two grippers. On the next attempt at the task, the robot may take just as long and repeat the same mistakes. To avoid this repetition, robots must retain execution knowledge across attempts. Yet replaying past actions is insufficient, because their effects depend on the current conditions. Procedures that determine actions from the current scene address this, but when they meet conditions that earlier attempts did not cover, revising them requires the measured effects of earlier actions. We therefore propose SEEK, an agentic framework that retains both, enabling robots to improve across attempts while keeping the underlying model fixed. To adapt retained knowledge to the current scene, SEEK adopts a Self-Evolving Programmatic Policy (SEPP) that encodes manipulation as executable procedures and determines each action from current observations. As the robot executes these procedures, SEEK records the measured effects of its actions, including those from failed attempts, in a Persistent Action-Effect Bank (PAEB). Where a retained procedure applies, it acts without a model request; where it meets a condition it does not cover, this evidence guides its revision. On RoboDojo, SEEK reaches an average task score of 54.4 and a success rate of 48.0% across all 42 tasks, where the knowledge retained over ten attempts more than doubles SEEK’s task performance. With GPT-6.2 Astra, on 34 of these tasks, SEEK reaches 80.1 after five attempts, against 49.6 for the same model acting directly, and uses 77.6% fewer model requests.</p>
       </details>
+    </section>
+
+    <section class="sec wrap" id="video">
+      <div class="head head-center reveal">
+        <p class="eyebrow">Video</p>
+        <h2>SEEK in three minutes.</h2>
+      </div>
+      <div class="demo reveal">
+        <div class="stage stage-light">
+          <video src="web/media/explainer.mp4" poster="web/media/explainer_poster.webp" width="1920" height="1080" controls playsinline preload="none"></video>
+        </div>
+        <div class="demo-meta">
+          <p class="goal"><span>From the cube task step by step to the results on RoboDojo and on the real robot.</span></p>
+        </div>
+      </div>
     </section>
 
     <section class="sec wrap" id="results">
@@ -335,21 +350,17 @@
       <p class="log-foot">Select a task for the seed, layout, score, model requests and steps of each episode. Scores are the benchmark task scores; success and requests in the table are those of SEEK, and the Astra column is gpt-6.2-astra acting directly on the same episodes. A category averages its tasks and the average weights the four categories equally, as in the paper. Data: <a href="evaluation/k5-frozen-seed2/results.json">results.json</a>, <a href="evaluation/k5-frozen-seed2/episodes.csv">episodes.csv</a>. gpt-6.2-astra acting directly on the same episodes: <a href="evaluation/astra-direct-seed2/results.json">results.json</a>, <a href="evaluation/astra-direct-seed2/episodes.csv">episodes.csv</a>.</p>
     </section>
 
-    <section class="sec wrap" id="video">
+    <section class="sec wrap" id="real-video">
       <div class="head head-center reveal">
-        <p class="eyebrow">Video</p>
-        <h2>The same story, on screen.</h2>
+        <p class="eyebrow">Real-robot video</p>
+        <h2>All four tasks in one take.</h2>
       </div>
-      <div class="demo reveal" data-tabs>
-        <div class="tabs" role="tablist" aria-label="Videos">
-          <button type="button" role="tab" aria-selected="true" data-src="web/media/explainer.mp4" data-poster="web/media/explainer_poster.webp" data-goal="The idea in about three minutes, with the cube task animated step by step and the GPT-6.2 Astra results.">Explainer</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_comparison.mp4" data-poster="web/media/real_comparison_poster.webp" data-goal="All four real-robot tasks in one take, with narration.">Real-robot comparison</button>
-        </div>
+      <div class="demo reveal">
         <div class="stage stage-light">
-          <video src="web/media/explainer.mp4" poster="web/media/explainer_poster.webp" width="1920" height="1080" controls playsinline preload="none"></video>
+          <video src="web/media/real_comparison.mp4" poster="web/media/real_comparison_poster.webp" width="1920" height="1080" controls playsinline preload="none"></video>
         </div>
         <div class="demo-meta">
-          <p class="goal"><span data-goal-out>The idea in about three minutes, with the cube task animated step by step and the GPT-6.2 Astra results.</span></p>
+          <p class="goal"><span>The four real-robot tasks with narration, GPT-6 Astra acting directly beside SEEK.</span></p>
         </div>
       </div>
     </section>
