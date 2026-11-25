@@ -10,7 +10,7 @@
     "README.md": "4dc145e03347d6812174ba809df873c0ad75b912453b11fbd2140464e6beb53a",
     "docs/METHOD.md": "9dbfbf50d55fd8f4918576e1e6daa38ac90153130927cc8c03dbb3fe4ac3fa27",
     "docs/SETUP.md": "4de68863776eb12430a566992d9506e9b90d0937a7734be6fff52a6b2bdfde71",
-    "index.html": "e37616cc4c492441a1ee51fafc3f0da890f2d9e3bb0530b5f0b0459c3113d7fe",
+    "index.html": "7cad01e824ee171276515f9a40b242d49d45ca6aeee784fb1d2b8acd80669c16",
     "runtime/configs/data.lock.json": "9bf0a7601697ae2913362caeaf958c1d5d0bd2cb3caa9049fd2fc283bb6e3d8a",
     "runtime/configs/perception-runtime.json": "648e5c4be8207942b1a142909a235c495d9e97abf4577b6cd0dce2d47843cf0d",
     "runtime/configs/protocols/seek.json": "19c66831262bf5035efff27db80f47ddee2aaaa29e8f68ba53277474eab3c371",
@@ -148,7 +148,7 @@
     "web/favicon.svg": "74e7a4976e478e158984caa3146f6da1327f6d2e940371414c7352dcfa1c7c77",
     "web/log.js": "af826718fd9077ef081d33989838ed4f171ef0d64f5cd7ed7c985cd705a5f140",
     "web/polish.css": "534ac03afad287123424b4c02b82c206089f59e2011363231bcef3bcf41fd1c5",
-    "web/polish.js": "e1023e2f0992e303fb6e3e880532cfbe59435eeffd5f790fccb780f5661c258e",
+    "web/polish.js": "0191c30f2142088cdbbde186d212083bb7d1ec432915b6a7fe2af739e1873914",
     "web/style.css": "7f8e1f36931ae52be03dda9654db264d23062e3e24378a81d39042708ef2e1d2"
   }
 }
