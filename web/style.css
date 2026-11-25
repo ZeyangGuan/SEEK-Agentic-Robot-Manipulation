@@ -2370,6 +2370,65 @@ button.card-link:hover {
   }
 }
 
+.versus-real .vs-groups,
+.versus-real .vs-cats {
+  gap: clamp(0.8rem, 3vw, 2.4rem);
+}
+
+.versus-real .vs-line {
+  width: 3px;
+  border-radius: 2px;
+}
+
+.versus-real .vs-dot {
+  width: clamp(10px, 1.1vw, 14px);
+  height: clamp(10px, 1.1vw, 14px);
+}
+
+.versus-real .vs-col:hover {
+  background: none;
+}
+
+.versus-real .vs-line,
+.versus-real .vs-dot {
+  transition-duration: 1.4s, 1.4s, 0.8s;
+  transition-delay: calc(0.7s + var(--i) * 200ms);
+}
+
+.vs-num {
+  position: absolute;
+  left: 50%;
+  bottom: var(--a);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--bg);
+  font: 600 clamp(0.76rem, 1.1vw, 0.95rem)/1 var(--mono);
+  white-space: nowrap;
+  transition: bottom 1.4s var(--ease), opacity 0.8s;
+  transition-delay: calc(0.7s + var(--i) * 200ms);
+}
+
+.vs-num-astra {
+  color: var(--gray);
+  transform: translate(-50%, calc(100% + 0.6rem));
+}
+
+.vs-num-seek {
+  color: var(--sepp);
+  opacity: 0;
+  transform: translate(-50%, -0.65rem);
+}
+
+.versus.in .vs-num-seek {
+  bottom: var(--s);
+  opacity: 1;
+}
+
+.versus-real .vs-cats span {
+  line-height: 1.3;
+  white-space: normal;
+}
+
 .log-cells {
   display: flex;
   gap: 0.3rem;
