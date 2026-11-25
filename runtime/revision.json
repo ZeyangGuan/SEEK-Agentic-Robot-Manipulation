@@ -1,0 +1,6 @@
+{
+  "name": "SEEK",
+  "revision": "seek",
+  "abi": "seek-control",
+  "memory_schema": "seek-memory"
+}

@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <title>SEEK: Self-Evolution through Execution Knowledge for Agentic Robot Manipulation</title>
+  <meta name="description" content="SEEK lets a robot keep what it learns from one attempt at a task to the next, as executable procedures and measured action effects, while the underlying model stays fixed.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SEEK: Self-Evolution through Execution Knowledge for Agentic Robot Manipulation">
+  <meta property="og:description" content="A robot that keeps what it learns from one attempt to the next, while the underlying model stays fixed.">
+  <meta property="og:image" content="https://zeyangguan.github.io/SEEK-Agentic-Robot-Manipulation/web/media/og.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="web/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="web/style.css">
+  <script src="web/app.js" defer></script>
+  <script src="web/log.js" defer></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-in">
+      <a class="brand" href="#top" aria-label="SEEK, top of page">S<span class="ee"><i>E</i><b>E</b><svg class="loop" viewBox="-46 -74 92 148" aria-hidden="true"><g class="loop-a"><path d="M-37.6-45.1A39 39 0 0 1 21.5-58.7"/><polygon points="31.6,-46.9 25.3,-66.9 22.1,-57.1 12.1,-54.6"/></g><g class="loop-b" transform="rotate(180)"><path d="M-37.6-45.1A39 39 0 0 1 21.5-58.7"/><polygon points="31.6,-46.9 25.3,-66.9 22.1,-57.1 12.1,-54.6"/></g></svg></span>K</a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#results">Results</a>
+        <a href="#problem">Problem</a>
+        <a href="#idea">Idea</a>
+        <a href="#method">Method</a>
+        <a href="#real">Real robot</a>
+        <a href="#log">Log</a>
+        <a href="#video">Video</a>
+      </nav>
+      <div class="nav-side">
+        <a href="#release">Paper</a>
+        <a class="nav-cta" href="https://github.com/ZeyangGuan/SEEK-Agentic-Robot-Manipulation">
+          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+          Code
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="top" data-hero data-src="web/media/seq/t2_" data-frames="127" data-split="90" data-t1="300.85" data-t2="684.3">
+      <div class="hero-stage">
+        <div class="hero-panels">
+          <div class="panel panel-l">
+            <img src="web/media/seq/t2_000.webp" width="2360" height="1000" alt="A Franka arm above a table with a red, a yellow and a blue cube and a coaster, before the model acting directly starts the task.">
+            <canvas width="1180" height="1000" aria-hidden="true"></canvas>
+            <span class="hud hud-name">GPT-6 Astra acting directly</span>
+            <span class="hud hud-clock" data-clock="left">00:00</span>
+            <span class="hud hud-out bad" data-out="left">Tower not built</span>
+          </div>
+          <div class="panel panel-r">
+            <img src="web/media/seq/t2_000.webp" width="2360" height="1000" alt="The same arm and cubes on another layout, before SEEK starts the task.">
+            <canvas width="1180" height="1000" aria-hidden="true"></canvas>
+            <span class="hud hud-name"><b>SEEK</b> same model</span>
+            <span class="hud hud-clock" data-clock="right">00:00</span>
+            <span class="hud hud-out good" data-out="right">Red, yellow, blue tower stands</span>
+          </div>
+        </div>
+        <div class="orgs">
+          <img src="web/media/logo_ntu.webp" width="365" height="132" alt="Nanyang Technological University, Singapore">
+          <img src="web/media/logo_nus.webp" width="288" height="132" alt="National University of Singapore">
+          <img class="org-ms" src="web/media/logo_microsoft.webp" width="413" height="88" alt="Microsoft">
+        </div>
+        <div class="hero-copy">
+          <h1>
+            <span class="wordmark">S<span class="ee"><i>E</i><b>E</b><svg class="loop" viewBox="-46 -74 92 148" aria-hidden="true"><g class="loop-a"><path d="M-37.6-45.1A39 39 0 0 1 21.5-58.7"/><polygon points="31.6,-46.9 25.3,-66.9 22.1,-57.1 12.1,-54.6"/></g><g class="loop-b" transform="rotate(180)"><path d="M-37.6-45.1A39 39 0 0 1 21.5-58.7"/><polygon points="31.6,-46.9 25.3,-66.9 22.1,-57.1 12.1,-54.6"/></g></svg></span>K</span>
+            <span class="title"><em>S</em>elf-<em class="c1">E</em>volution through <em class="c2">E</em>xecution <em>K</em>nowledge <br>for Agentic Robot Manipulation</span>
+          </h1>
+          <p class="tagline">A robot that keeps what it learns from one attempt to the next, while the underlying model stays fixed.</p>
+          <nav class="cta" aria-label="Resources">
+            <a class="btn btn-main" href="https://github.com/ZeyangGuan/SEEK-Agentic-Robot-Manipulation">
+              <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.93-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+              Code
+            </a>
+            <span class="btn btn-off">Paper <small>arXiv, coming soon</small></span>
+            <a class="btn" href="#video">Video</a>
+            <a class="btn" href="#release">BibTeX</a>
+          </nav>
+          <p class="authors">
+            <span>Zeyang Guan<sup>1</sup></span>
+            <span>Qihao Zhao<sup>1</sup></span>
+            <span>Rui Gong<sup>1</sup></span>
+            <span>Zhang Haitian<sup>1</sup></span>
+            <span>Yalun Dai<sup>1</sup></span>
+            <span>Yangyu Huang<sup>2</sup></span>
+            <span>Lingao Xiao<sup>3</sup></span>
+            <span>Haozhe Du<sup>3</sup></span>
+            <span>Xuehui Yu<sup>3</sup></span>
+            <span>Ye Lu<sup>1</sup></span>
+            <span>Jianjun Gao<sup>1</sup></span>
+            <span>Ruoyu Wang<sup>1</sup></span>
+            <span>Haowen Bai<sup>1</sup></span>
+            <span>Hao Li<sup>1</sup></span>
+            <span>Scarlett Li<sup>2</sup></span>
+            <span>Kim-Hui Yap<sup>1</sup></span>
+          </p>
+          <p class="affiliations">
+            <span><sup>1</sup>Nanyang Technological University</span>
+            <span><sup>2</sup>Microsoft</span>
+            <span><sup>3</sup>National University of Singapore</span>
+          </p>
+        </div>
+        <div class="hero-brief" aria-hidden="true">
+          <p class="label">Real robot, Task 2</p>
+          <p class="brief-goal">Stack the red, yellow and blue cubes on the coaster, red at the bottom.</p>
+          <p class="brief-sides"><span>Left<b>GPT-6 Astra acting directly</b></span><span>Right<b>SEEK</b>, same model</span></p>
+          <p class="brief-note">One episode each, played as you scroll. The clocks show real time.</p>
+        </div>
+        <p class="hero-task"><span class="label">Real robot, Task 2</span>Stack the red, yellow and blue cubes on the coaster, red at the bottom. The clocks show real time.</p>
+        <p class="hero-hint" aria-hidden="true">Scroll</p>
+      </div>
+    </section>
+
+    <section class="statement wrap">
+      <p class="reveal">A general-purpose multimodal model can guide a robot through a task it was never trained on. It looks at the scene, tries something, reads the feedback, and adjusts. Over one attempt the robot finds out a good deal about the task. <b>Then the attempt ends and all of it is gone,</b> because it was held only in the model’s working context. The next attempt may take just as long and repeat the same mistakes.</p>
+      <p class="reveal"><b>SEEK keeps that knowledge.</b> The model stays fixed. What changes from one attempt to the next is a set of executable procedures and a record of what each action did.</p>
+      <details class="abstract reveal">
+        <summary>Abstract</summary>
+        <p>General-purpose multimodal foundation models enable robots to adapt during deployment from observations and execution feedback, without task-specific demonstrations or training. However, the robot retains what it learns only in the model’s working context. Once the task ends, it loses this execution knowledge, such as how to carry a bowl between two grippers. On the next attempt at the task, the robot may take just as long and repeat the same mistakes. To avoid this repetition, robots must retain execution knowledge across attempts. Yet replaying past actions is insufficient, because their effects depend on the current conditions. Procedures that determine actions from the current scene address this, but when they meet conditions that earlier attempts did not cover, revising them requires the measured effects of earlier actions. We therefore propose SEEK, an agentic framework that retains both, enabling robots to improve across attempts while keeping the underlying model fixed. To adapt retained knowledge to the current scene, SEEK adopts a Self-Evolving Programmatic Policy (SEPP) that encodes manipulation as executable procedures and determines each action from current observations. As the robot executes these procedures, SEEK records the measured effects of its actions, including those from failed attempts, in a Persistent Action-Effect Bank (PAEB). Where a retained procedure applies, it acts without a model request; where it meets a condition it does not cover, this evidence guides its revision. On RoboDojo, SEEK reaches an average task score of 54.4 and a success rate of 48.0% across all 42 tasks, where the knowledge retained over ten attempts more than doubles SEEK’s task performance. With GPT-6.2 Astra, on 34 of these tasks, SEEK reaches 80.1 after five attempts, against 49.6 for the same model acting directly, and uses 77.6% fewer model requests.</p>
+      </details>
+    </section>
+
+    <section class="sec wrap" id="results">
+      <div class="head reveal">
+        <p class="eyebrow">Results</p>
+        <h2>What it adds up to.</h2>
+        <p class="lead">We test this on RoboDojo, a simulation benchmark of dual-arm manipulation tasks, with gpt-6.2-astra as the fixed model. The robot sees RGB images, with no depth and no object states, and it gets no demonstrations. SEEK is given five attempts at each of 34 tasks and is then evaluated on 340 episodes with layouts it has not seen. On the same episodes, the same model acts directly through the benchmark team's reference harness.</p>
+      </div>
+      <div class="stats stats-left reveal">
+        <div class="stat"><b><span class="from">49.6</span><span class="to-arrow">→</span>80.1</b><span>average task score on 34 tasks, from <span style="white-space:nowrap">gpt-6.2-astra</span> acting directly to SEEK after five attempts</span></div>
+        <div class="stat"><b><span class="from">40.7%</span><span class="to-arrow">→</span>75.0%</b><span>success rate</span></div>
+        <div class="stat"><b><span class="from">63.2</span><span class="to-arrow">→</span>14.1</b><span>model requests per episode, 77.6% fewer</span></div>
+      </div>
+      <figure class="versus reveal" data-versus>
+        <div class="versus-key" aria-hidden="true"><span class="k-astra">gpt-6.2-astra acting directly</span><span class="k-seek">SEEK after five attempts</span></div>
+        <div class="versus-plot" data-versus-plot role="img" aria-label="Task score on each of the 34 tasks, gpt-6.2-astra acting directly and SEEK after five attempts."></div>
+        <figcaption>Task score on each of the 34 tasks, ten episodes each, grouped by category. Each column is one task, from the model acting directly to SEEK. The <a href="#log">evaluation log</a> lists every episode.</figcaption>
+      </figure>
+      <p class="body reveal">In the paper, with GPT-6 Astra on all 42 tasks, SEEK has the highest average score among the learned policies and agent-based methods compared.</p>
+    </section>
+
+    <section class="sec wrap" id="problem">
+      <div class="split">
+        <div class="copy reveal">
+          <p class="eyebrow">The problem</p>
+          <h2>The same mistake, twice.</h2>
+          <p>Take another task on the same arm. Four cubes have to form a 2 × 2 square. The first three can simply be set down. The fourth is held between the fingers while it is lowered, so one finger ends up between it and its neighbour, and <strong>a gap is left when the gripper opens</strong>.</p>
+          <p>Within an attempt, the model can see the gap and try to correct it. Whatever it works out stays in its working context and is lost when the task ends. On the next attempt the cubes are laid out differently, the last cube is again lowered from a grasp, and <strong>the gap is there again</strong>.</p>
+        </div>
+        <div class="pairs reveal">
+          <div class="pair">
+            <p class="label">One attempt</p>
+            <div class="shots">
+              <figure class="shot"><img src="web/media/cubes_alone_k_place.webp" width="1440" height="1080" loading="lazy" alt="The gripper lowers an orange cube next to three placed cubes, with one finger between the orange and blue cubes."><figcaption>places the last cube</figcaption></figure>
+              <figure class="shot"><img src="web/media/cubes_alone_k_result.webp" width="1440" height="1080" loading="lazy" alt="Four cubes in a rough square with a visible gap beside the orange cube."><figcaption class="bad">gap left</figcaption></figure>
+            </div>
+          </div>
+          <div class="pair">
+            <p class="label">The next attempt, new layout</p>
+            <div class="shots">
+              <figure class="shot"><img src="web/media/cubes_alone_k1_place.webp" width="1440" height="1080" loading="lazy" alt="On a different layout, the gripper again lowers the orange cube from a grasp."><figcaption>places it the same way</figcaption></figure>
+              <figure class="shot"><img src="web/media/cubes_alone_k1_result.webp" width="1440" height="1080" loading="lazy" alt="Four cubes with a gap between the orange and red cubes."><figcaption class="bad">gap again</figcaption></figure>
+            </div>
+          </div>
+          <p class="credit">GPT-6 Astra acting directly, on a real Franka arm.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec wrap" id="idea">
+      <div class="split">
+        <div class="copy reveal">
+          <p class="eyebrow">The idea</p>
+          <h2>What is worth keeping.</h2>
+          <p>The obvious remedy is to remember what was done and do it again. That stops working as soon as the scene changes. The cubes are somewhere else on the next attempt, and the same motion closes the gripper on an empty table. What an action does depends on the conditions it is taken in.</p>
+          <p>What does carry over is a procedure, a piece of code that reads the current scene and determines the action from it. Find the next cube in view, grasp it, place it in the next free slot. SEEK keeps such procedures in a <strong class="sepp">Self-Evolving Programmatic Policy (SEPP)</strong>. Where a retained procedure applies, the robot acts without a request to the model.</p>
+          <p>A procedure only covers the conditions it has met, and the first one written for the cubes has no answer to the gap. To revise it, the model needs to know what earlier actions produced, the failed ones included. So SEEK also records the measured effect of every executed action in a <strong class="paeb">Persistent Action-Effect Bank (PAEB)</strong>. The record of a placement that left a gap is the evidence from which the model adds a step that pushes the cube in, and the revision keeps a reference to that record.</p>
+        </div>
+        <div class="kept reveal">
+          <div class="tile kept-sepp">
+            <p class="tile-head"><b>SEPP</b><span>procedures</span></p>
+            <ol>
+              <li>find the next cube in view</li>
+              <li>grasp it</li>
+              <li>place it in the next slot</li>
+              <li class="added">push it into the slot if a gap is left</li>
+            </ol>
+          </div>
+          <div class="tile kept-paeb">
+            <p class="tile-head"><b>PAEB</b><span>action effects</span></p>
+            <ul>
+              <li><span class="tick ok" aria-label="worked">✓</span>grasp <span class="arrow">→</span> cube held</li>
+              <li><span class="tick ok" aria-label="worked">✓</span>place <span class="arrow">→</span> cube in its slot</li>
+              <li class="cited"><span class="tick no" aria-label="failed">✗</span>place <span class="arrow">→</span> gap left</li>
+            </ul>
+          </div>
+          <p class="credit">What SEEK holds after an attempt at the cube task, simplified. The highlighted step was added from the highlighted record.</p>
+        </div>
+      </div>
+
+      <div class="split split-next">
+        <div class="copy reveal">
+          <p class="lead">The next attempt starts from both. The procedure places the last cube, the gap appears as before, and <strong>the added step closes the gripper and pushes the cube into its slot</strong>.</p>
+        </div>
+        <div class="pairs reveal">
+          <div class="pair">
+            <p class="label">One attempt</p>
+            <div class="shots">
+              <figure class="shot"><img src="web/media/cubes_seek_k_place.webp" width="1440" height="1080" loading="lazy" alt="The gripper lowers the orange cube next to the blue cube, a finger between them."><figcaption>places the last cube</figcaption></figure>
+              <figure class="shot"><img src="web/media/cubes_seek_k_result.webp" width="1440" height="1080" loading="lazy" alt="Four cubes with a gap between the orange and blue cubes."><figcaption class="bad">gap left</figcaption></figure>
+            </div>
+          </div>
+          <div class="pair">
+            <p class="label">The next attempt, new layout</p>
+            <div class="shots">
+              <figure class="shot"><img src="web/media/cubes_seek_k1_push.webp" width="1440" height="1080" loading="lazy" alt="The closed gripper presses against the side of the orange cube."><figcaption>pushes it into the slot</figcaption></figure>
+              <figure class="shot"><img src="web/media/cubes_seek_k1_result.webp" width="1440" height="1080" loading="lazy" alt="Four cubes forming a tight two by two square."><figcaption class="good">no gap</figcaption></figure>
+            </div>
+          </div>
+          <p class="credit">SEEK with the same model.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="method" id="method" data-method>
+      <div class="method-stage">
+        <div class="wrap method-grid">
+          <div class="method-copy">
+            <p class="eyebrow">Method</p>
+            <h2>Inside one attempt.</h2>
+            <ol class="steps">
+              <li data-box="0,12.5,15.5,68.5">
+                <h3>Observe</h3>
+                <p>Every step of an attempt runs the same loop. The robot observes RGB images and its own state.</p>
+              </li>
+              <li data-box="13.5,12.5,55.5,68.5">
+                <h3>Determine the action</h3>
+                <p>SEPP’s main program grounds the current goal in the image, checks progress, and either advances or selects one of its named operations to produce the action.</p>
+              </li>
+              <li data-box="54,12.5,100,68.5">
+                <h3>Execute and record</h3>
+                <p>The action is executed, and the observation before it, the action itself, and the observation after it go into PAEB as one record.</p>
+              </li>
+              <li data-box="0,0,100,70.5" data-box-narrow="30,0,63,25">
+                <h3>Ask the fixed model</h3>
+                <p>The fixed model is called when a procedure asks for guidance. It is also called when a separate progress monitor finds that execution has stalled, and it can then revise the program or an operation on the spot.</p>
+              </li>
+              <li data-box="0,69.5,53,100">
+                <h3>Review the attempt</h3>
+                <p>After the attempt, the model reviews the outcome and decides whether to keep, replace, or revert the program.</p>
+              </li>
+              <li data-box="47,69.5,100,100">
+                <h3>Start the next attempt</h3>
+                <p>The next attempt begins in a fresh scene with the updated procedures and everything recorded so far.</p>
+              </li>
+              <li data-box="0,0,100,100">
+                <h3>The whole loop</h3>
+                <p>Top, one step of an attempt. Bottom, what is carried from one attempt to the next.</p>
+              </li>
+            </ol>
+          </div>
+          <figure class="method-fig">
+            <a class="viewport" href="web/media/method.webp"><img src="web/media/method.webp" srcset="web/media/method_3200.webp 3200w, web/media/method.webp 5600w" sizes="(max-width: 1000px) 240vw, 2400px" width="5600" height="2797" alt="Overview of SEEK. Within an attempt, the robot observes, SEPP determines the action, the action is executed, and PAEB records its effect, with the fixed model guiding and revising SEPP from PAEB evidence. Across attempts, evidence accumulates and the policy is consolidated."></a>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec wrap" id="real">
+      <div class="head reveal">
+        <p class="eyebrow">Real robot</p>
+        <h2>Beyond one model, and beyond simulation.</h2>
+        <p class="lead">The gain does not depend on one model or on simulation. With Claude Opus 5.5 as the fixed model, three of the tasks go from 24.0 to 62.4. On a real Franka arm with four tabletop tasks, five attempts are enough for SEEK to score 83.3 where GPT-6 Astra acting directly scores 66.9, with about a third fewer model requests.</p>
+      </div>
+      <div class="demo reveal" data-tabs data-auto>
+        <div class="tabs" role="tablist" aria-label="Real-robot tasks">
+          <button type="button" role="tab" aria-selected="true" data-src="web/media/real_t1.mp4" data-poster="web/media/real_t1_poster.webp" data-label="Task 1" data-goal="Put the red cube into the gray tray."><span>1</span>Put Cube into Tray</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t2.mp4" data-poster="web/media/real_t2_poster.webp" data-label="Task 2" data-goal="Stack the red, yellow and blue cubes on the coaster, red at the bottom."><span>2</span>Stack Cubes into Tower</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t3.mp4" data-poster="web/media/real_t3_poster.webp" data-label="Task 3" data-goal="Put the two fruits into the yellow tray and the two cubes into the blue tray."><span>3</span>Sort Items into Trays</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t4.mp4" data-poster="web/media/real_t4_poster.webp" data-label="Task 4" data-goal="Arrange the four cubes into a 2 × 2 square."><span>4</span>Arrange Cubes into Square</button>
+        </div>
+        <div class="stage">
+          <video src="web/media/real_t1.mp4" poster="web/media/real_t1_poster.webp" width="1868" height="784" muted playsinline preload="none" aria-label="Side-by-side recording of the task, GPT-6 Astra acting directly on the left and SEEK on the right."></video>
+        </div>
+        <div class="scrub">
+          <button type="button" class="pp" data-pp aria-label="Pause"></button>
+          <div class="track" data-track><i></i></div>
+        </div>
+        <div class="demo-meta">
+          <p class="goal"><span class="label" data-label-out>Task 1</span><span data-goal-out>Put the red cube into the gray tray.</span></p>
+          <p class="note">Left, GPT-6 Astra acting directly. Right, SEEK with the same model. One episode per task, sped up. The clocks show real time.</p>
+        </div>
+      </div>
+      <div class="stats stats-two reveal">
+        <div class="stat"><b><span class="from">66.9</span><span class="to-arrow">→</span>83.3</b><span>average task score over the four real-robot tasks, from the model acting directly to SEEK</span></div>
+        <div class="stat"><b><span class="from">52.2</span><span class="to-arrow">→</span>34.4</b><span>model requests per episode</span></div>
+      </div>
+    </section>
+
+    <section class="sec wrap" id="log" data-log data-src="evaluation/k5-frozen-seed2/results.json" data-compare="evaluation/astra-direct-seed2/results.json">
+      <div class="head reveal">
+        <p class="eyebrow">Evaluation log</p>
+        <h2>Five attempts, then new layouts.</h2>
+        <p class="lead">The SEEK episodes behind the simulation results. SEEK makes five evolution attempts at each of 34 RoboDojo tasks, then plays ten episodes per task on seed 2 layouts it has not seen, 340 in all. Every episode starts from the same knowledge and writes nothing back.</p>
+      </div>
+      <p class="log-key reveal" data-log-versus hidden><b>SEEK</b> / gpt-6.2-astra acting directly, on the same episodes</p>
+      <div class="stats log-stats reveal" data-log-stats></div>
+      <div class="log-cats reveal" data-log-cats></div>
+      <div class="tile log-table reveal">
+        <div class="log-bar-top">
+          <div class="log-filters" data-log-filters role="group" aria-label="Filter by category"></div>
+          <p class="log-when" data-log-live><span data-log-state>Loading</span> · updated <time data-log-time></time></p>
+        </div>
+        <div class="log-head" aria-hidden="true">
+          <span>Task</span><span class="log-done">Scored</span><span>SEEK</span><span class="log-astra">Astra</span><span>Success</span><span>Requests</span><span>Episodes 1–10</span>
+        </div>
+        <div class="log-rows" data-log-rows></div>
+        <div class="log-legend">
+          <span><i class="log-cell is-done is-full"></i>full score</span>
+          <span><i class="log-cell is-done" style="--s:0.5"></i>partial</span>
+          <span><i class="log-cell is-done is-zero"></i>zero</span>
+          <span data-log-live><i class="log-cell is-running"></i>running</span>
+          <span data-log-live><i class="log-cell is-queued"></i>queued</span>
+          <span><i class="log-cell is-done is-full is-random"></i>randomized layout</span>
+        </div>
+      </div>
+      <p class="log-foot">Select a task for the seed, layout, score, model requests and steps of each episode. Scores are the benchmark task scores; success and requests in the table are those of SEEK, and the Astra column is gpt-6.2-astra acting directly on the same episodes. A category averages its tasks and the average weights the four categories equally, as in the paper. Data: <a href="evaluation/k5-frozen-seed2/results.json">results.json</a>, <a href="evaluation/k5-frozen-seed2/episodes.csv">episodes.csv</a>. gpt-6.2-astra acting directly on the same episodes: <a href="evaluation/astra-direct-seed2/results.json">results.json</a>, <a href="evaluation/astra-direct-seed2/episodes.csv">episodes.csv</a>.</p>
+    </section>
+
+    <section class="sec wrap" id="video">
+      <div class="head head-center reveal">
+        <p class="eyebrow">Video</p>
+        <h2>The same story, on screen.</h2>
+      </div>
+      <div class="demo reveal" data-tabs>
+        <div class="tabs" role="tablist" aria-label="Videos">
+          <button type="button" role="tab" aria-selected="true" data-src="web/media/explainer.mp4" data-poster="web/media/explainer_poster.webp" data-goal="The idea in about three minutes, with the cube task animated step by step and the GPT-6.2 Astra results.">Explainer</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_comparison.mp4" data-poster="web/media/real_comparison_poster.webp" data-goal="All four real-robot tasks in one take, with narration.">Real-robot comparison</button>
+        </div>
+        <div class="stage stage-light">
+          <video src="web/media/explainer.mp4" poster="web/media/explainer_poster.webp" width="1920" height="1080" controls playsinline preload="none"></video>
+        </div>
+        <div class="demo-meta">
+          <p class="goal"><span data-goal-out>The idea in about three minutes, with the cube task animated step by step and the GPT-6.2 Astra results.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec wrap" id="release">
+      <div class="head head-center reveal">
+        <p class="eyebrow">Release</p>
+        <h2>Paper and code.</h2>
+      </div>
+      <div class="cards reveal">
+        <div class="tile card">
+          <p class="label">Paper</p>
+          <h3>arXiv</h3>
+          <p>How SEEK retains and revises execution knowledge, with the full evaluation.</p>
+          <span class="card-link off">Coming soon</span>
+        </div>
+        <a class="tile card" href="https://github.com/ZeyangGuan/SEEK-Agentic-Robot-Manipulation">
+          <p class="label">Code</p>
+          <h3>GitHub</h3>
+          <p>The SEEK runtime, the 42 task configurations and the setup scripts.</p>
+          <span class="card-link">Open on GitHub <span aria-hidden="true">↗</span></span>
+        </a>
+        <div class="tile card">
+          <p class="label">Cite</p>
+          <h3>BibTeX</h3>
+          <p>The entry below, ready to paste into your references.</p>
+          <button type="button" class="card-link" id="copy-bibtex">Copy BibTeX</button>
+        </div>
+      </div>
+      <pre class="tile bibtex reveal"><code id="bibtex-text">@article{guan2026seek,
+  title   = {{SEEK}: Self-Evolution through Execution Knowledge
+             for Agentic Robot Manipulation},
+  author  = {Guan, Zeyang and Zhao, Qihao and Gong, Rui and Zhang, Haitian and
+             Dai, Yalun and Huang, Yangyu and Xiao, Lingao and Du, Haozhe and
+             Yu, Xuehui and Lu, Ye and Gao, Jianjun and Wang, Ruoyu and
+             Bai, Haowen and Li, Hao and Li, Scarlett and Yap, Kim-Hui},
+  journal = {arXiv preprint},
+  year    = {2026}
+}</code></pre>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p class="wrap">SEEK is evaluated on the RoboDojo benchmark. The code is released under the MIT License.</p>
+  </footer>
+</body>
+</html>

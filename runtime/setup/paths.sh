@@ -1,0 +1,4 @@
+export SEEK_CODE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+export SEEK_DATA_ROOT="${SEEK_DATA_ROOT:-$SEEK_CODE_ROOT/data}"
+export SEEK_RESULTS_ROOT="${SEEK_RESULTS_ROOT:-$SEEK_CODE_ROOT/results}"
+export PYTHONPATH="$SEEK_CODE_ROOT${PYTHONPATH:+:$PYTHONPATH}"

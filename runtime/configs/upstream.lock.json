@@ -1,0 +1,32 @@
+{
+  "schema": "seek.upstream.v2",
+  "packages": [
+    {
+      "name": "RoboDojo",
+      "path": "third_party/RoboDojo",
+      "url": "https://github.com/RoboDojo-Benchmark/RoboDojo.git",
+      "base": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
+      "patch": "setup/robodojo_integration.patch",
+      "commit": "f511b3cb3c04d38b13829dca049a784105e31306"
+    },
+    {
+      "name": "XPolicyLab",
+      "path": "third_party/XPolicyLab",
+      "url": "https://github.com/XPolicyLab/XPolicyLab.git",
+      "commit": "fa431ecd893ee706883e64fe5fe1464ec8cd928d"
+    },
+    {
+      "name": "IsaacLab",
+      "path": "third_party/IsaacLab",
+      "url": "https://github.com/isaac-sim/IsaacLab.git",
+      "commit": "afca7b09d60d8beb9c1cb28b43066499940b969b"
+    },
+    {
+      "name": "cuRobo",
+      "path": "third_party/curobo",
+      "url": "https://github.com/NVlabs/curobo.git",
+      "commit": "895c6517243f8cb091c73c018c8167192d39599a"
+    }
+  ],
+  "integration": "Packages are loaded in place. RoboDojo is the public commit in \"base\" plus the SEEK integration patch (execution-side IK continuity guard, camera validation, external asset paths, and the articulation drive-target reset of upstream RoboDojo pull request #48); setup/prepare.py applies it and reproduces the commit in \"commit\"."
+}

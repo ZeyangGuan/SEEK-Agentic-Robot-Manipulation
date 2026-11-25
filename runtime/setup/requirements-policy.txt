@@ -1,0 +1,11 @@
+numpy==1.26.0
+Pillow==11.3.0
+PyYAML==6.0.2
+scipy==1.15.3
+opencv-python-headless==4.11.0.86
+websockets==15.0.1
+msgpack==1.1.1
+msgpack-numpy==0.4.8
+pydantic==2.11.7
+requests>=2.32,<3
+tiktoken==0.14.0

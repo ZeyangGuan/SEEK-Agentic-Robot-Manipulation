@@ -1,0 +1,23 @@
+{
+  "id": "seek",
+  "model": "gpt-6.2-astra",
+  "api_mode": "responses",
+  "harness_overrides": {
+    "experience_horizon_from_budget": true,
+    "predict_horizon": 5,
+    "execute_horizon": 5,
+    "fixed_predict_horizon": false,
+    "reasoning_effort": "xhigh",
+    "max_output_tokens": null,
+    "max_turns": null,
+    "max_seconds": null,
+    "max_total_tokens": null,
+    "max_transport_attempts": null,
+    "max_action_corrections": 0,
+    "max_context_images": 50,
+    "ik_continuity_guard": true,
+    "request_timeout_s": 600,
+    "max_model_requests": null
+  },
+  "evaluation_mode": "full_episode"
+}

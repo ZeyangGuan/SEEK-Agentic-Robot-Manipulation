@@ -1,0 +1,18 @@
+{
+  "official_task_documentation": {
+    "version": "robodojo-pinned-726e9aab-2026-10-24",
+    "source": "https://github.com/RoboDojo-Benchmark/RoboDojo/blob/726e9aabfaa642203722eb126f5eaf0f37f3e1ad/task/RoboDojo/tasks/press_by_number.py",
+    "description": "There are two number cards, two red buttons, and one blue confirmation button. Read the number cards. Press and fully release red button 0 exactly num0 times, then press and fully release the blue button to confirm the first count. Press and fully release red button 1 exactly num1 times, then press and fully release the blue button again and return the robot to its origin. The first blue confirmation does not end the task. Exactly two blue presses are required; excess presses fail the task.",
+    "scoring": [
+      {
+        "score": "0",
+        "condition": "The required press counts or confirm sequence is not completed exactly."
+      },
+      {
+        "score": "100",
+        "condition": "Button `0` is pressed exactly the number shown by `num0`, the blue confirm button is pressed, button `1` is pressed exactly the number shown by `num1`, the blue confirm button is pressed again, and the robot returns to origin."
+      }
+    ],
+    "comment": "This description reconciles the task instructions with the pinned RoboDojo run_reward and RewardManager implementation. The earlier public-documentation sentence claiming immediate termination after the first blue press does not match this executable version. This correction changes task text only, not the native scoring or execution policy."
+  }
+}

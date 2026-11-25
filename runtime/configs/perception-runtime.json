@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/facebookresearch/sam3",
+  "commit": "f1647e8d0c1d280991f4d1b7d974c2704537fe66",
+  "checkout_clean_when_recorded": true,
+  "package_version": "0.1.0",
+  "torch": "2.10.0+cu128",
+  "torchvision": "0.25.0+cu128",
+  "checkpoint_repository": "facebook/sam3",
+  "checkpoint_sha256": "9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e",
+  "interpreter_environment": "SEEK_SAM_PYTHON",
+  "checkpoint_environment": "SEEK_SAM3_CHECKPOINT",
+  "depth_enabled": false,
+  "weights_included": false
+}

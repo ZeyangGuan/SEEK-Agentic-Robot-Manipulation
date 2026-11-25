@@ -1,0 +1,30 @@
+name: SEEK package
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify and publish the package
+        run: |
+          set -eu
+          gh repo clone "$GITHUB_REPOSITORY" source
+          cd source
+          git checkout --detach "$GITHUB_SHA"
+          python - <<'PY'
+          import hashlib, json, zipfile
+          from pathlib import Path
+          files = json.loads(Path("SOURCE_MANIFEST.json").read_text())["files"]
+          with zipfile.ZipFile("packages/seek.zip") as archive:
+              assert set(archive.namelist()) == {"SEEK/" + name for name in (*files, "SOURCE_MANIFEST.json")}
+              for name, digest in files.items():
+                  data = Path(name).read_bytes()
+                  assert hashlib.sha256(data).hexdigest() == digest
+                  assert archive.read("SEEK/" + name) == data
+              assert archive.read("SEEK/SOURCE_MANIFEST.json") == Path("SOURCE_MANIFEST.json").read_bytes()
+          PY
+          (cd packages && sha256sum -c SHA256SUMS.txt)
+          gh release create seek packages/seek.zip packages/SHA256SUMS.txt --draft --title SEEK --notes "SEEK runtime and source checksums." --target "$GITHUB_SHA"
