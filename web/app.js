@@ -22,7 +22,7 @@ const pinProgress = (section) => {
   return distance > 0 ? clamp(-box.top / distance, 0, 1) : 0;
 };
 
-const HERO_TRAVEL = 320;
+const HERO_TRAVEL = 210;
 const hero = document.querySelector('[data-hero]');
 if (hero && window.matchMedia('(min-height: 480px)').matches) {
   const stage = hero.querySelector('.hero-stage');
@@ -134,9 +134,9 @@ if (hero && window.matchMedia('(min-height: 480px)').matches) {
       const t = clamp((travel - from) / span, 0, 1);
       return t * t * (3 - 2 * t);
     };
-    const fade = ease(11, 75);
-    const cardIn = ease(66, 31);
-    const cardOut = ease(128, 35);
+    const fade = ease(8, 42);
+    const cardIn = ease(40, 22);
+    const cardOut = ease(80, 22);
     const set = (name, value) => stage.style.setProperty(name, value.toFixed(3));
     set('--a', fade);
     set('--card-in', cardIn);
@@ -148,7 +148,7 @@ if (hero && window.matchMedia('(min-height: 480px)').matches) {
     set('--zoom', 1.07 - 0.025 * fade - 0.045 * cardOut);
     stage.classList.toggle('untitled', fade >= 1);
     stage.classList.toggle('playing', cardOut >= 1);
-    target = clamp((travel - 158) / 140, 0, 1) * (count - 1);
+    target = clamp((travel - 98) / 100, 0, 1) * (count - 1);
     kick();
   });
 }

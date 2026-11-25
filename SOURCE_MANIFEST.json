@@ -10,7 +10,7 @@
     "README.md": "4dc145e03347d6812174ba809df873c0ad75b912453b11fbd2140464e6beb53a",
     "docs/METHOD.md": "9dbfbf50d55fd8f4918576e1e6daa38ac90153130927cc8c03dbb3fe4ac3fa27",
     "docs/SETUP.md": "4de68863776eb12430a566992d9506e9b90d0937a7734be6fff52a6b2bdfde71",
-    "index.html": "a96a4d0a7c748467a263b552a45ea77f8ecc544296da603272a60085b0744a87",
+    "index.html": "b840b4a211dea770ee9429735682dd469b3c1c20feb050f4211f44cf8a8ea7dd",
     "runtime/configs/data.lock.json": "9bf0a7601697ae2913362caeaf958c1d5d0bd2cb3caa9049fd2fc283bb6e3d8a",
     "runtime/configs/perception-runtime.json": "648e5c4be8207942b1a142909a235c495d9e97abf4577b6cd0dce2d47843cf0d",
     "runtime/configs/protocols/seek.json": "19c66831262bf5035efff27db80f47ddee2aaaa29e8f68ba53277474eab3c371",
@@ -144,11 +144,11 @@
     "runtime/tools/online_effect_vision.py": "3b3b9fc437e3677e1042d6c9c2168f01950de527b4afb18fdf7995ba5297e967",
     "runtime/tools/review.py": "e03a648359496da6be5c7ecec7b4a58d44ebab1c3b139c71f860e59317685b5f",
     "runtime/tools/review_transport.py": "15e0042859b84773e35898232dfe543be18a574aa31603f8b8ea538326948ddd",
-    "web/app.js": "2bff49b7c42f3858074c35f40942b10652c84dbc9780e8183181887416e1674c",
+    "web/app.js": "8590e15b4170dcbb5f24e78a559bedb473552aa08d904542282b837d728e033a",
     "web/favicon.svg": "74e7a4976e478e158984caa3146f6da1327f6d2e940371414c7352dcfa1c7c77",
     "web/log.js": "622cbf551041b7e3870350a8ded24426a68d5089196e01579c9bf4a1706b93f4",
-    "web/polish.css": "534ac03afad287123424b4c02b82c206089f59e2011363231bcef3bcf41fd1c5",
-    "web/polish.js": "e1023e2f0992e303fb6e3e880532cfbe59435eeffd5f790fccb780f5661c258e",
-    "web/style.css": "ee24c0aa41e90e1708bc5944e1d05b935a29051412a0fa99d738ff3b6f85a411"
+    "web/polish.css": "5f024a3ef93b4a91ef851aab2383f4dfbf59341a1b0d0aad305ae870e1bc2bb8",
+    "web/polish.js": "8a6d298b6976179e110733db7444af9a9e5efab15a3e5f095dc43ad15dea3e46",
+    "web/style.css": "481b536d1144036a95a330bb27036032d6fe9e2a513e14e2e8067b64db19e06d"
   }
 }

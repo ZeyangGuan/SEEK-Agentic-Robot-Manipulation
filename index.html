@@ -29,10 +29,10 @@
       <nav class="nav-links" aria-label="Sections">
         <a href="#video">Video</a>
         <a href="#results">Results</a>
+        <a href="#real">Real robot</a>
         <a href="#problem">Problem</a>
         <a href="#idea">Idea</a>
         <a href="#method">Method</a>
-        <a href="#real">Real robot</a>
         <a href="#log">Log</a>
       </nav>
       <div class="nav-side">
@@ -162,12 +162,62 @@
       <p class="body reveal">In the paper, with GPT-6 Astra on all 42 tasks, SEEK has the highest average score among the learned policies and agent-based methods compared.</p>
     </section>
 
+    <section class="sec wrap" id="real">
+      <div class="head reveal">
+        <p class="eyebrow">Real robot</p>
+        <h2>Beyond one model, and beyond simulation.</h2>
+        <p class="lead">The gain does not depend on one model or on simulation. With Claude Opus 5.5 as the fixed model, three of the tasks go from 24.0 to 62.4. On a real Franka arm with four tabletop tasks, five attempts are enough for SEEK to score 83.3 where GPT-6 Astra acting directly scores 66.9, with about a third fewer model requests.</p>
+      </div>
+      <div class="demo reveal" data-tabs data-auto>
+        <div class="tabs" role="tablist" aria-label="Real-robot tasks">
+          <button type="button" role="tab" aria-selected="true" data-src="web/media/real_t1.mp4" data-poster="web/media/real_t1_poster.webp" data-label="Task 1" data-goal="Put the red cube into the gray tray."><span>1</span>Put Cube into Tray</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t2.mp4" data-poster="web/media/real_t2_poster.webp" data-label="Task 2" data-goal="Stack the red, yellow and blue cubes on the coaster, red at the bottom."><span>2</span>Stack Cubes into Tower</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t3.mp4" data-poster="web/media/real_t3_poster.webp" data-label="Task 3" data-goal="Put the two fruits into the yellow tray and the two cubes into the blue tray."><span>3</span>Sort Items into Trays</button>
+          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t4.mp4" data-poster="web/media/real_t4_poster.webp" data-label="Task 4" data-goal="Arrange the four cubes into a 2 × 2 square."><span>4</span>Arrange Cubes into Square</button>
+        </div>
+        <div class="stage">
+          <video src="web/media/real_t1.mp4" poster="web/media/real_t1_poster.webp" width="1868" height="784" muted playsinline preload="none" aria-label="Side-by-side recording of the task, GPT-6 Astra acting directly on the left and SEEK on the right."></video>
+        </div>
+        <div class="scrub">
+          <button type="button" class="pp" data-pp aria-label="Pause"></button>
+          <div class="track" data-track><i></i></div>
+        </div>
+        <div class="demo-meta">
+          <p class="goal"><span class="label" data-label-out>Task 1</span><span data-goal-out>Put the red cube into the gray tray.</span></p>
+          <p class="note">Left, GPT-6 Astra acting directly. Right, SEEK with the same model. One episode per task, sped up. The clocks show real time.</p>
+        </div>
+      </div>
+      <div class="stats stats-left reveal">
+        <div class="stat"><b><span class="from">66.9</span><span class="to-arrow">→</span>83.3</b><span>average task score over the four real-robot tasks, from the model acting directly to SEEK</span></div>
+        <div class="stat"><b><span class="from">52.2</span><span class="to-arrow">→</span>34.4</b><span>model requests per episode</span></div>
+      </div>
+      <figure class="versus versus-real reveal">
+        <div class="versus-key" aria-hidden="true"><span class="k-astra">GPT-6 Astra acting directly</span><span class="k-seek">SEEK after five attempts</span></div>
+        <div class="versus-plot" role="img" aria-label="Task score on each of the four real-robot tasks. Put Cube into Tray, 80.0 to 90.0. Stack Cubes into Tower, 64.0 to 82.0. Sort Items into Trays, 67.5 to 85.0. Arrange Cubes into Square, 56.0 to 76.0.">
+          <div class="vs-axis"><span style="--y:0%">0</span><span style="--y:25%">25</span><span style="--y:50%">50</span><span style="--y:75%">75</span><span style="--y:100%">100</span></div>
+          <div class="vs-body">
+            <div class="vs-area">
+              <i class="vs-gl" style="--y:0%"></i><i class="vs-gl" style="--y:25%"></i><i class="vs-gl" style="--y:50%"></i><i class="vs-gl" style="--y:75%"></i><i class="vs-gl" style="--y:100%"></i>
+              <div class="vs-groups">
+                <div class="vs-col" style="--a:80%;--s:90%;--lo:80%;--len:10%;--i:0"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">80.0</b><b class="vs-num vs-num-seek">90.0</b></div>
+                <div class="vs-col" style="--a:64%;--s:82%;--lo:64%;--len:18%;--i:1"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">64.0</b><b class="vs-num vs-num-seek">82.0</b></div>
+                <div class="vs-col" style="--a:67.5%;--s:85%;--lo:67.5%;--len:17.5%;--i:2"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">67.5</b><b class="vs-num vs-num-seek">85.0</b></div>
+                <div class="vs-col" style="--a:56%;--s:76%;--lo:56%;--len:20%;--i:3"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">56.0</b><b class="vs-num vs-num-seek">76.0</b></div>
+              </div>
+            </div>
+            <div class="vs-cats"><span>Put Cube into Tray</span><span>Stack Cubes into Tower</span><span>Sort Items into Trays</span><span>Arrange Cubes into Square</span></div>
+          </div>
+        </div>
+        <figcaption>Task score on each of the four real-robot tasks, ten episodes each. Each column is one task, from GPT-6 Astra acting directly to SEEK with the same model.</figcaption>
+      </figure>
+    </section>
+
     <section class="sec wrap" id="problem">
       <div class="split">
         <div class="copy reveal">
           <p class="eyebrow">The problem</p>
           <h2>The same mistake, twice.</h2>
-          <p>Take another task on the same arm. Four cubes have to form a 2 × 2 square. The first three can simply be set down. The fourth is held between the fingers while it is lowered, so one finger ends up between it and its neighbour, and <strong>a gap is left when the gripper opens</strong>.</p>
+          <p>Take the fourth task on the same arm. Four cubes have to form a 2 × 2 square. The first three can simply be set down. The fourth is held between the fingers while it is lowered, so one finger ends up between it and its neighbour, and <strong>a gap is left when the gripper opens</strong>.</p>
           <p>Within an attempt, the model can see the gap and try to correct it. Whatever it works out stays in its working context and is lost when the task ends. On the next attempt the cubes are laid out differently, the last cube is again lowered from a grasp, and <strong>the gap is there again</strong>.</p>
         </div>
         <div class="pairs reveal">
@@ -287,56 +337,6 @@
           </figure>
         </div>
       </div>
-    </section>
-
-    <section class="sec wrap" id="real">
-      <div class="head reveal">
-        <p class="eyebrow">Real robot</p>
-        <h2>Beyond one model, and beyond simulation.</h2>
-        <p class="lead">The gain does not depend on one model or on simulation. With Claude Opus 5.5 as the fixed model, three of the tasks go from 24.0 to 62.4. On a real Franka arm with four tabletop tasks, five attempts are enough for SEEK to score 83.3 where GPT-6 Astra acting directly scores 66.9, with about a third fewer model requests.</p>
-      </div>
-      <div class="demo reveal" data-tabs data-auto>
-        <div class="tabs" role="tablist" aria-label="Real-robot tasks">
-          <button type="button" role="tab" aria-selected="true" data-src="web/media/real_t1.mp4" data-poster="web/media/real_t1_poster.webp" data-label="Task 1" data-goal="Put the red cube into the gray tray."><span>1</span>Put Cube into Tray</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t2.mp4" data-poster="web/media/real_t2_poster.webp" data-label="Task 2" data-goal="Stack the red, yellow and blue cubes on the coaster, red at the bottom."><span>2</span>Stack Cubes into Tower</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t3.mp4" data-poster="web/media/real_t3_poster.webp" data-label="Task 3" data-goal="Put the two fruits into the yellow tray and the two cubes into the blue tray."><span>3</span>Sort Items into Trays</button>
-          <button type="button" role="tab" aria-selected="false" tabindex="-1" data-src="web/media/real_t4.mp4" data-poster="web/media/real_t4_poster.webp" data-label="Task 4" data-goal="Arrange the four cubes into a 2 × 2 square."><span>4</span>Arrange Cubes into Square</button>
-        </div>
-        <div class="stage">
-          <video src="web/media/real_t1.mp4" poster="web/media/real_t1_poster.webp" width="1868" height="784" muted playsinline preload="none" aria-label="Side-by-side recording of the task, GPT-6 Astra acting directly on the left and SEEK on the right."></video>
-        </div>
-        <div class="scrub">
-          <button type="button" class="pp" data-pp aria-label="Pause"></button>
-          <div class="track" data-track><i></i></div>
-        </div>
-        <div class="demo-meta">
-          <p class="goal"><span class="label" data-label-out>Task 1</span><span data-goal-out>Put the red cube into the gray tray.</span></p>
-          <p class="note">Left, GPT-6 Astra acting directly. Right, SEEK with the same model. One episode per task, sped up. The clocks show real time.</p>
-        </div>
-      </div>
-      <div class="stats stats-left reveal">
-        <div class="stat"><b><span class="from">66.9</span><span class="to-arrow">→</span>83.3</b><span>average task score over the four real-robot tasks, from the model acting directly to SEEK</span></div>
-        <div class="stat"><b><span class="from">52.2</span><span class="to-arrow">→</span>34.4</b><span>model requests per episode</span></div>
-      </div>
-      <figure class="versus versus-real reveal">
-        <div class="versus-key" aria-hidden="true"><span class="k-astra">GPT-6 Astra acting directly</span><span class="k-seek">SEEK after five attempts</span></div>
-        <div class="versus-plot" role="img" aria-label="Task score on each of the four real-robot tasks. Put Cube into Tray, 80.0 to 90.0. Stack Cubes into Tower, 64.0 to 82.0. Sort Items into Trays, 67.5 to 85.0. Arrange Cubes into Square, 56.0 to 76.0.">
-          <div class="vs-axis"><span style="--y:0%">0</span><span style="--y:25%">25</span><span style="--y:50%">50</span><span style="--y:75%">75</span><span style="--y:100%">100</span></div>
-          <div class="vs-body">
-            <div class="vs-area">
-              <i class="vs-gl" style="--y:0%"></i><i class="vs-gl" style="--y:25%"></i><i class="vs-gl" style="--y:50%"></i><i class="vs-gl" style="--y:75%"></i><i class="vs-gl" style="--y:100%"></i>
-              <div class="vs-groups">
-                <div class="vs-col" style="--a:80%;--s:90%;--lo:80%;--len:10%;--i:0"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">80.0</b><b class="vs-num vs-num-seek">90.0</b></div>
-                <div class="vs-col" style="--a:64%;--s:82%;--lo:64%;--len:18%;--i:1"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">64.0</b><b class="vs-num vs-num-seek">82.0</b></div>
-                <div class="vs-col" style="--a:67.5%;--s:85%;--lo:67.5%;--len:17.5%;--i:2"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">67.5</b><b class="vs-num vs-num-seek">85.0</b></div>
-                <div class="vs-col" style="--a:56%;--s:76%;--lo:56%;--len:20%;--i:3"><i class="vs-line"></i><i class="vs-dot vs-astra"></i><i class="vs-dot vs-seek"></i><b class="vs-num vs-num-astra">56.0</b><b class="vs-num vs-num-seek">76.0</b></div>
-              </div>
-            </div>
-            <div class="vs-cats"><span>Put Cube into Tray</span><span>Stack Cubes into Tower</span><span>Sort Items into Trays</span><span>Arrange Cubes into Square</span></div>
-          </div>
-        </div>
-        <figcaption>Task score on each of the four real-robot tasks, ten episodes each. Each column is one task, from GPT-6 Astra acting directly to SEEK with the same model.</figcaption>
-      </figure>
     </section>
 
     <section class="sec wrap" id="log" data-log data-src="evaluation/k5-frozen-seed2/results.json" data-compare="evaluation/astra-direct-seed2/results.json">
