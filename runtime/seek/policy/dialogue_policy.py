@@ -7,9 +7,10 @@ import time
 from pathlib import Path
 from uuid import uuid4
 
-import numpy as np
-from .model_policy import validate_actions, CAMERAS
+from .action_validation import chunk_commands
+from .model_policy import CAMERAS
 from .bounded_policy import Model as BoundedModel, BudgetExceeded, RequestTransportError
+from .model_request_budget import request_budget
 from .provider_compat import provider_cache_usage, to_wire_payload
 from .observation_images import camera_input_parts, image_encoding, prompt_image, validate_prompt_image
 
@@ -256,87 +257,98 @@ class Model(BoundedModel):
         return {'text_bytes': text_bytes, 'image_count': len(images), 'wire_bytes': wire_bytes,
                 'reserved_tokens': reserve, 'reservation_note': 'Estimate assumes no cache discount; not monetary guarantee'}
 
+    def _log_reasoning_replay(self, payload):
+        outgoing = [item for item in payload['input'] if item.get('type') == 'reasoning']
+        expected = self.returned_reasoning_items
+        if self.reasoning_replay_disabled and not outgoing:
+            status = 'disabled_after_provider_rejection'
+        elif not expected and not outgoing:
+            status = 'no_reasoning_items_provided'
+        elif outgoing == expected:
+            status = 'exact_replay'
+        else:
+            status = 'replay_mismatch'
+        self._log('reasoning_replay.jsonl', {
+            'turn': self.turns+1, 'expected_items': len(expected), 'outgoing_items': len(outgoing),
+            'status': status,
+            'expected_item_sha256': [_item_digest(item) for item in expected],
+            'outgoing_item_sha256': [_item_digest(item) for item in outgoing],
+            'note': 'Opaque items compared without decryption; no reasoning item is not evidence of reasoning replay.'})
+
+    def _retry_delay(self, error, attempt, limit):
+        if error.recovery is not None:
+            return 0.0
+        if error.retry_after_s is not None:
+            return error.retry_after_s
+        return min(2 ** min(attempt-1, 6), 60 if limit is None else 8)
+
+    def _ensure_time_for_retry(self, error, attempt, delay):
+        if self.max_seconds is None:
+            return
+        run_remaining = self.max_seconds - self._active_elapsed()
+        if delay < run_remaining:
+            return
+        self._log('network_recovery.jsonl', {
+            'turn': self.turns+1, 'failed_attempt': attempt,
+            'retry_skipped': 'run_deadline', 'retry_delay_s': delay,
+            'run_remaining_s': max(run_remaining, 0.0),
+            'error_code': error.error_code, 'robot_action_replayed': False,
+        })
+        raise BudgetExceeded('harness_timeout: insufficient time for transport retry') from error
+
+    def _log_retry(self, error, attempt, payload, removed, delay):
+        wire = to_wire_payload(payload, self.api_mode)
+        if os.environ.get('ASTRA_STREAM', '0') == '1':
+            wire['stream'] = True
+        self._log('network_recovery.jsonl', {
+            'turn': self.turns+1, 'failed_attempt': attempt, 'next_attempt': attempt+1,
+            'retained_failed_reservation_tokens': self.pending_reserved_tokens,
+            'error_code': error.error_code, 'recovery': error.recovery or 'same_payload',
+            'removed_reasoning_items': removed, 'retry_delay_s': delay,
+            'next_payload_sha256': hashlib.sha256(json.dumps(wire).encode()).hexdigest(),
+            'possible_duplicate_inference_cost': error.recovery is None,
+            'robot_action_replayed': False})
+
     def _request(self, payload):
-        outgoing_reasoning = [item for item in payload['input'] if item.get('type')=='reasoning']
-        expected_reasoning = self.returned_reasoning_items
-        replay_status = ('disabled_after_provider_rejection'
-                         if self.reasoning_replay_disabled and not outgoing_reasoning
-                         else 'no_reasoning_items_provided' if not expected_reasoning and not outgoing_reasoning
-                         else 'exact_replay' if outgoing_reasoning == expected_reasoning
-                         else 'replay_mismatch')
-        self._log('reasoning_replay.jsonl', {'turn':self.turns+1,
-            'expected_items':len(self.returned_reasoning_items),'outgoing_items':len(outgoing_reasoning),
-            'status': replay_status,
-            'expected_item_sha256':[hashlib.sha256(json.dumps(item,sort_keys=True).encode()).hexdigest()
-                                    for item in self.returned_reasoning_items],
-            'outgoing_item_sha256':[hashlib.sha256(json.dumps(item,sort_keys=True).encode()).hexdigest()
-                                    for item in outgoing_reasoning],
-            'note':'Opaque items compared without decryption; no reasoning item is not evidence of reasoning replay.'})
-        active_payload = payload
-        bounded_failure_counts = {}
+        self._log_reasoning_replay(payload)
+        limit = self.dialogue_config.max_transport_attempts
+        capped_failures = {}
         self.transport_logical_id = str(uuid4())
         attempt = 0
         while True:
             attempt += 1
             self.transport_attempt = attempt
             try:
-                response = super()._request(active_payload)
+                response = self._request_once(payload)
                 break
-            except RequestTransportError as exc:
-                from .model_request_budget import request_budget
+            except RequestTransportError as error:
                 request_budget(self).check_available()
-                limit = self.dialogue_config.max_transport_attempts
-                if not exc.retryable or (limit is not None and attempt >= limit):
+                if not error.retryable or (limit is not None and attempt >= limit):
                     raise
-                if exc.max_attempts is not None:
-                    failure_key = (exc.error_code, exc.recovery)
-                    bounded_failure_counts[failure_key] = (
-                        bounded_failure_counts.get(failure_key, 0) + 1)
-                    if bounded_failure_counts[failure_key] >= exc.max_attempts:
+                if error.max_attempts is not None:
+                    key = (error.error_code, error.recovery)
+                    capped_failures[key] = capped_failures.get(key, 0) + 1
+                    if capped_failures[key] >= error.max_attempts:
                         raise
-                recovery = exc.recovery
-                removed_reasoning_items = 0
-                if recovery == 'drop_reasoning_items':
-                    active_payload, removed_reasoning_items = without_reasoning_replay(active_payload)
-                    if not removed_reasoning_items:
+                removed = 0
+                if error.recovery == 'drop_reasoning_items':
+                    payload, removed = without_reasoning_replay(payload)
+                    if not removed:
                         raise
                     self.reasoning_replay_disabled = True
-                delay = (0.0 if recovery is not None else
-                         exc.retry_after_s if exc.retry_after_s is not None else min(2 ** min(attempt-1, 6), 60 if limit is None else 8))
-                if self.max_seconds is not None:
-                    run_remaining = self.max_seconds - self._active_elapsed()
-                    if delay >= run_remaining:
-                        self._log('network_recovery.jsonl', {
-                            'turn': self.turns+1, 'failed_attempt': attempt,
-                            'retry_skipped': 'run_deadline', 'retry_delay_s': delay,
-                            'run_remaining_s': max(run_remaining, 0.0),
-                            'error_code': exc.error_code, 'robot_action_replayed': False,
-                        })
-                        raise BudgetExceeded(
-                            'harness_timeout: insufficient time for transport retry') from exc
-                next_wire_payload = to_wire_payload(active_payload, self.api_mode)
-                if os.environ.get('ASTRA_STREAM', '0') == '1':
-                    next_wire_payload['stream'] = True
-
-                self._log('network_recovery.jsonl', {'turn': self.turns+1, 'failed_attempt': attempt,
-                    'next_attempt': attempt+1,
-                    'retained_failed_reservation_tokens': self.pending_reserved_tokens,
-                    'error_code': exc.error_code, 'recovery': recovery or 'same_payload',
-                    'removed_reasoning_items': removed_reasoning_items,
-                    'retry_delay_s': delay,
-                    'next_payload_sha256': hashlib.sha256(
-                        json.dumps(next_wire_payload).encode()).hexdigest(),
-                    'possible_duplicate_inference_cost': recovery is None,
-                    'robot_action_replayed': False})
-                if recovery is None:
+                delay = self._retry_delay(error, attempt, limit)
+                self._ensure_time_for_retry(error, attempt, delay)
+                self._log_retry(error, attempt, payload, removed, delay)
+                if error.recovery is None:
                     time.sleep(delay)
                 self.budget_poisoned = False
-        usage = response.get('usage', {})
-        cache_usage = provider_cache_usage(usage)
-        total = cache_usage['input_tokens']
-        cached = cache_usage['cached_tokens']
-        written = cache_usage['cache_write_tokens']
-        valid = cache_usage['cache_reporting_valid']
+        self._log_cache(response)
+        return response
+
+    def _log_cache(self, response):
+        usage = provider_cache_usage(response.get('usage', {}))
+        total, cached = usage['input_tokens'], usage['cached_tokens']
+        written, valid = usage['cache_write_tokens'], usage['cache_reporting_valid']
         if valid:
             self.cache_reported_responses += 1
             self.cache_hit_responses += cached > 0
@@ -344,47 +356,20 @@ class Model(BoundedModel):
             self.cache_read_tokens += cached
             if type(written) is int and written >= 0:
                 self.cache_write_tokens += written
-        self._log('cache.jsonl', {'turn': self.turns+1, 'stable_prefix_sha256': self.stable_prefix_hash,
-                  **cache_usage,
-                  'server_diagnostics':response.get('prompt_cache_diagnostics'),
-                  'request_has_cache_hit': cached > 0 if valid else None,
-                  'cached_input_fraction': cached/total if valid and total else None,
-                  'cumulative_request_hit_rate': self.cache_hit_responses/self.cache_reported_responses
-                  if self.cache_reported_responses else None,
-                  'cumulative_cached_input_fraction': self.cache_read_tokens/self.cache_input_tokens
-                  if self.cache_input_tokens else None,
-                  'note': 'Provider report only; not direct KV inspection or verified invoice'})
-        return response
+        self._log('cache.jsonl', {
+            'turn': self.turns+1, 'stable_prefix_sha256': self.stable_prefix_hash, **usage,
+            'server_diagnostics': response.get('prompt_cache_diagnostics'),
+            'request_has_cache_hit': cached > 0 if valid else None,
+            'cached_input_fraction': cached/total if valid and total else None,
+            'cumulative_request_hit_rate': self.cache_hit_responses/self.cache_reported_responses
+            if self.cache_reported_responses else None,
+            'cumulative_cached_input_fraction': self.cache_read_tokens/self.cache_input_tokens
+            if self.cache_input_tokens else None,
+            'note': 'Provider report only; not direct KV inspection or verified invoice'})
 
     def _convert_tensor(self, rows, state):
-        if self.dialogue_config.fixed_predict_horizon and (
-                not isinstance(rows, list) or len(rows) != self.dialogue_config.predict_horizon):
-            raise ValueError(f'actions must contain exactly {self.dialogue_config.predict_horizon} control steps; no padding or truncation')
-        if not isinstance(rows, list) or not 1 <= len(rows) <= self.max_chunk:
-            raise ValueError('Invalid prediction horizon')
-        if any(not isinstance(r, list) or len(r) != 14 or
-               any(type(v) not in (int, float) for v in r) for r in rows):
-            raise ValueError('actions must have shape [T,14] with numeric values')
-        tensor = np.asarray(rows, dtype=np.float64)
-        if not np.isfinite(tensor).all():
-            raise ValueError('Nonfinite actions')
-        c = self.dialogue_config
-        raw = []
-        prior_joint = {arm: np.asarray(state.get(f'{arm}_arm_joint_state', [])) for arm in ('left','right')}
-        for index, row in enumerate(tensor):
-            item = {'mode': c.action_space, 'left': row[:6], 'left_gripper': float(row[6]),
-                    'right': row[7:13], 'right_gripper': float(row[13])}
-            for arm in ('left', 'right'):
-                vector = item[arm]
-                if c.action_space == 'ee_delta':
-                    translation, rotation = float(np.linalg.norm(vector[:3])), float(np.linalg.norm(vector[3:]))
-                    if translation > c.max_translation_m+1e-6 or rotation > c.max_rotation_rad+1e-6:
-                        raise ValueError(f'actions[{index}].{arm}: translation L2={translation:.8f}m '
-                            f'(limit {c.max_translation_m}m), rotation L2={rotation:.8f}rad '
-                            f'(limit {c.max_rotation_rad}rad); bounds are norms, not per-axis limits')
-                else:
-                    if prior_joint[arm].shape != (6,) or np.max(np.abs(vector-prior_joint[arm])) > c.max_joint_increment_rad+1e-6:
-                        raise ValueError('Absolute joint target change exceeds bound')
-                    prior_joint[arm] = vector
-            raw.append(item)
-        return validate_actions(raw, c.predict_horizon, state)
+        return chunk_commands(rows, state, self.dialogue_config, self.max_chunk)
+
+
+def _item_digest(item):
+    return hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest()

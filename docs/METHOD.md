@@ -218,14 +218,16 @@ snapshot, and no post-attempt review runs.
 | `segmented_geometry.py`, `visual_measurements.py`, `rigid_geometry.py`, `tool_geometry.py` | Mask geometry, region measurements, rigid transforms, gripper envelopes |
 | `unified_vision.py`, `segmentation_client.py`, `temporal_segmentation.py` | Role binding and tracking with the segmentation service |
 | `observation_images.py`, `head_calibration_capture.py` | Image encoding and the camera calibration captured from the simulator |
-| `camera_readiness.py`, `camera_preflight.py` | Blank-frame checks before an attempt |
+| `camera_readiness.py`, `camera_preflight.py` | Blank-frame retries on every observation, and the capture-only camera probe |
 
 **Model interface**
 
 | Module | Role |
 |---|---|
-| `model_policy.py` | Observation whitelist and action conversion |
-| `dialogue_policy.py`, `bounded_policy.py` | Request construction, streaming, budgets, and error handling |
+| `model_policy.py` | Observation whitelist |
+| `action_validation.py` | Chunk shape, per-step bounds, and conversion to executor commands |
+| `dialogue_policy.py`, `bounded_policy.py` | Request construction, budgets, and retries |
+| `provider_response.py` | Streamed responses and provider error classification |
 | `provider_compat.py`, `transport_retry.py` | Endpoint validation and transport retries |
 | `model_request_budget.py` | Per-attempt request accounting |
 | `context_window.py`, `context_view.py`, `prompt_layout.py` | What the model sees: bounded views, deferred history, and message layout |

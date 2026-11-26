@@ -1,7 +1,8 @@
 from copy import deepcopy
 import numpy as np
 
-from .model_policy import validate_actions,plain
+from .action_validation import validate_actions
+from .model_policy import plain
 from .tool_geometry import tool_base_motion_relation
 
 

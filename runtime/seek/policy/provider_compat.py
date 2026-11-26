@@ -37,20 +37,21 @@ def from_wire_response(response: dict, api_mode: str) -> dict:
     return response
 
 
+def _count(value):
+    return value if type(value) is int else None
+
+
 def provider_cache_usage(usage: object) -> dict:
-    if not isinstance(usage, dict):
-        usage = {}
-    input_tokens = usage.get("input_tokens")
+    usage = usage if isinstance(usage, dict) else {}
     details = usage.get("input_tokens_details")
-    cached_tokens = details.get("cached_tokens") if isinstance(details, dict) else None
-    cache_write_tokens = details.get("cache_write_tokens") if isinstance(details, dict) else None
-    valid = (
-        type(input_tokens) is int and input_tokens >= 0
-        and type(cached_tokens) is int and cached_tokens >= 0
-    )
+    details = details if isinstance(details, dict) else {}
+    input_tokens = usage.get("input_tokens")
+    cached_tokens = details.get("cached_tokens")
+    valid = (type(input_tokens) is int and input_tokens >= 0
+             and type(cached_tokens) is int and cached_tokens >= 0)
     return {
-        "input_tokens": input_tokens if type(input_tokens) is int else None,
-        "cached_tokens": cached_tokens if type(cached_tokens) is int else None,
-        "cache_write_tokens": cache_write_tokens if type(cache_write_tokens) is int else None,
+        "input_tokens": _count(input_tokens),
+        "cached_tokens": _count(cached_tokens),
+        "cache_write_tokens": _count(details.get("cache_write_tokens")),
         "cache_reporting_valid": valid,
     }

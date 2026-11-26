@@ -43,54 +43,6 @@ def image_url(image):
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def _quat_mul(a, b):
-    aw, ax, ay, az = a
-    bw, bx, by, bz = b
-    return np.array([aw*bw-ax*bx-ay*by-az*bz, aw*bx+ax*bw+ay*bz-az*by,
-                     aw*by-ax*bz+ay*bw+az*bx, aw*bz+ax*by-ay*bx+az*bw])
-
-
-def validate_actions(raw, max_chunk=32, state=None):
-    if not isinstance(raw, list) or not 1 <= len(raw) <= max_chunk:
-        raise ValueError(f"actions must contain 1..{max_chunk} control steps")
-    result = []
-    ee_targets = {side: np.asarray((state or {}).get(f"{side}_ee_pose", []), dtype=np.float64).copy() for side in ("left", "right")}
-    for item in raw:
-        if item.get("mode") not in ("joint", "ee", "ee_delta"):
-            raise ValueError("mode must be joint, ee or ee_delta")
-        mode = item["mode"]
-        size = 7 if mode == "ee" else 6
-        packed = {}
-        for side in ("left", "right"):
-            values = np.asarray(item[side], dtype=np.float32)
-            grip = item[f"{side}_gripper"]
-            if values.shape != (size,) or not np.isfinite(values).all():
-                raise ValueError(f"{side} requires {size} finite numbers for {mode}")
-            if isinstance(grip, bool) or not isinstance(grip, (int, float)) or not np.isfinite(grip) or not 0 <= grip <= 1:
-                raise ValueError("gripper commands must be finite values in [0,1]")
-            if mode == "ee_delta":
-                previous = ee_targets[side]
-                if previous.shape != (7,) or not np.isfinite(previous).all():
-                    raise ValueError("ee_delta requires an observed EE pose; do not mix joint then delta in one chunk")
-                angle = float(np.linalg.norm(values[3:]))
-                dq = np.r_[np.cos(angle/2), values[3:] * (np.sin(angle/2)/angle if angle > 1e-10 else 0.5)]
-
-                values = np.r_[previous[:3] + values[:3], _quat_mul(dq, previous[3:])].astype(np.float32)
-            if mode in ("ee", "ee_delta"):
-                norm = float(np.linalg.norm(values[3:]))
-                if norm < 1e-6 or abs(norm - 1) > 0.05:
-                    raise ValueError("EE quaternion must be unit length, ordered w,x,y,z")
-                values[3:] /= norm
-                ee_targets[side] = values.copy()
-            else:
-                ee_targets[side] = np.array([])
-            key = f"{side}_arm_joint_state" if mode == "joint" else f"{side}_ee_pose"
-            packed[key] = values
-            packed[f"{side}_ee_joint_state"] = np.asarray([grip], dtype=np.float32)
-        result.append(packed)
-    return result
-
-
 class Model:
     def __init__(self, model_cfg):
         self.api_mode = validate_api_mode(

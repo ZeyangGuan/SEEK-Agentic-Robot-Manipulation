@@ -7,8 +7,9 @@ from uuid import uuid4
 
 from seek.policy import transport_retry
 from seek.policy.model_request_budget import ModelRequestBudget
-from seek.policy.bounded_policy import (read_sse_response,TruncatedResponseError,ProviderResponseError,
-                                          RequestTransportError,_retry_after_seconds)
+from seek.policy.bounded_policy import RequestTransportError
+from seek.policy.provider_response import (read_sse_response, TruncatedResponseError, ProviderResponseError,
+                                           retry_after_seconds)
 
 
 QUOTA_MARKERS = ('insufficient_quota', 'billing_hard_limit', 'quota_exceeded', 'insufficient_balance',
@@ -76,7 +77,7 @@ def send_review(endpoint, token, payload, receipt, folder):
                     raise RequestTransportError('Review HTTP '+str(response.status_code),
                         retryable=transient and not is_quota_error(response.text[:2048]),
                         error_code='http_'+str(response.status_code),
-                        retry_after_s=_retry_after_seconds(getattr(response,'headers',None)))
+                        retry_after_s=retry_after_seconds(getattr(response,'headers',None)))
                 def record_event(event):
                     if event.get('type') in ('response.output_item.done','response.completed','response.failed','response.incomplete','error'):
                         with (folder/'stream_events.jsonl').open('a',encoding='utf-8') as stream:

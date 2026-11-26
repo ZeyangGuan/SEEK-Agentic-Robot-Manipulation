@@ -1,9 +1,10 @@
-import os
 import math
+import os
 import time
 from uuid import uuid4
 
 
+MAX_BACKOFF_S = 60
 _outages = []
 
 
@@ -21,18 +22,33 @@ def active_elapsed(started):
     now = time.monotonic()
     if not enabled():
         return now - started
-    outage = sum(max(0.0, min(end, now) - max(begin, started)) for begin, end in _outages)
-    return max(0.0, now - started - outage)
+    waited = sum(max(0.0, min(end, now) - max(begin, started)) for begin, end in _outages)
+    return max(0.0, now - started - waited)
+
+
+def _backoff(attempt, error):
+    delay = min(2 ** min(attempt, 6), MAX_BACKOFF_S)
+    hint = getattr(error, 'retry_after_s', None)
+    if isinstance(hint, (int, float)) and math.isfinite(hint):
+        delay = max(delay, hint)
+    return delay
+
+
+def _wait(delay, started):
+    try:
+        time.sleep(delay)
+    finally:
+        _outages.append((started, time.monotonic()))
 
 
 def request(send, retryable, log, before=None, max_attempts=None):
-    if max_attempts is not None and (type(max_attempts) is not int or max_attempts<1):
+    if max_attempts is not None and (type(max_attempts) is not int or max_attempts < 1):
         raise ValueError("max_attempts must be a positive integer or null")
     if not enabled():
         return send()
     logical_id = str(uuid4())
+    failures = {}
     attempt = 0
-    failures_by_code = {}
     while True:
         attempt += 1
         if before is not None:
@@ -46,23 +62,16 @@ def request(send, retryable, log, before=None, max_attempts=None):
             if not retryable(error):
                 raise
             code = getattr(error, 'error_code', None) or type(error).__name__
-            failures_by_code[code] = failures_by_code.get(code, 0) + 1
-            maximum = getattr(error, 'max_attempts', None)
-
-            if maximum is not None and failures_by_code[code] >= maximum:
+            failures[code] = failures.get(code, 0) + 1
+            cap = getattr(error, 'max_attempts', None)
+            if cap is not None and failures[code] >= cap:
                 raise
-            delay = min(2 ** min(attempt, 6), 60)
-            retry_after = getattr(error, 'retry_after_s', None)
-            if isinstance(retry_after, (int, float)) and math.isfinite(retry_after):
-                delay = max(delay, retry_after)
+            delay = _backoff(attempt, error)
             log('retry_wait', logical_request_id=logical_id, failed_attempt=attempt,
                 error_code=getattr(error, 'error_code', type(error).__name__),
                 failed_request_seconds=time.monotonic() - started, retry_delay_seconds=delay,
                 robot_action_replayed=False, possible_duplicate_inference_cost=True)
-            try:
-                time.sleep(delay)
-            finally:
-                _outages.append((started, time.monotonic()))
+            _wait(delay, started)
             continue
         if attempt > 1:
             log('recovered', logical_request_id=logical_id, attempts=attempt,

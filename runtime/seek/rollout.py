@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 
 from seek.policy.action_feedback import TrackingGuard, tracking_receipt
-from seek.policy.bounded_policy import MAX_RETRY_AFTER_S
-from seek.policy.camera_readiness import blank_cameras
+from seek.policy.provider_response import MAX_RETRY_AFTER_S
+from seek.policy.camera_readiness import CAMERAS, blank_cameras, retry_until_visible
 from seek.policy.dialogue_policy import DialogueConfig, load_config
 from seek.policy.eval_failure import PolicyServiceError, policy_call
 from seek.policy.head_calibration_capture import capture_head_calibration, capture_camera_reference
@@ -35,18 +35,18 @@ def _plain(action: dict) -> dict:
 
 
 def _ready_observation(env):
-    attempts = []
-    for attempt in range(31):
+    def render():
         observation = env.get_obs()
-        bad = blank_cameras({0: observation})
-        if not bad:
-            for name in ('cam_head', 'cam_left_wrist', 'cam_right_wrist'):
-                camera = observation['vision'][name]
-                camera.pop('depth', None)
-                camera.pop('depth_calibration', None)
-                camera['rgb_calibration'] = capture_camera_reference(env, observation, name)
-            return observation
-        attempts.append({"attempt": attempt, "blank_cameras": bad})
+        return observation, blank_cameras({0: observation})
+
+    observation, attempts = retry_until_visible(render)
+    if observation is not None:
+        for name in CAMERAS:
+            camera = observation['vision'][name]
+            camera.pop('depth', None)
+            camera.pop('depth_calibration', None)
+            camera['rgb_calibration'] = capture_camera_reference(env, observation, name)
+        return observation
     env._policy_failure = {
         "method": "camera_capture",
         "classification": "camera_capture_failure",
