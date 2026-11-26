@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <a href="https://arxiv.org/abs/2611.33915"><img src="https://img.shields.io/badge/arXiv-2611.33915-B31B1B?style=for-the-badge" alt="arXiv paper"></a>
   <a href="https://zeyangguan.github.io/SEEK-Agentic-Robot-Manipulation/"><img src="https://img.shields.io/badge/Project_Page-videos_and_results-5E44A0?style=for-the-badge" alt="Project page"></a>
   <a href="evaluation/k5-frozen-seed2/"><img src="https://img.shields.io/badge/Evaluation_log-340_episodes-46307F?style=for-the-badge" alt="Evaluation log"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-8A8296?style=for-the-badge" alt="MIT license"></a>
@@ -201,8 +202,20 @@ The released configuration is the one used for the results above.
 
 ## Citation
 
-If you find SEEK useful, please cite the paper. The BibTeX entry will be added
-here with the public version of the paper.
+If you find SEEK useful, please cite the [paper](https://arxiv.org/abs/2611.33915):
+
+```bibtex
+@article{guan2026seek,
+  title   = {{SEEK}: Self-Evolution through Execution Knowledge
+             for Agentic Robot Manipulation},
+  author  = {Guan, Zeyang and Zhao, Qihao and Gong, Rui and Zhang, Haitian and
+             Dai, Yalun and Huang, Yangyu and Xiao, Lingao and Du, Haozhe and
+             Yu, Xuehui and Lu, Ye and Gao, Jianjun and Wang, Ruoyu and
+             Bai, Haowen and Li, Hao and Li, Scarlett and Yap, Kim-Hui},
+  journal = {arXiv preprint arXiv:2611.33915},
+  year    = {2026}
+}
+```
 
 ## License
 

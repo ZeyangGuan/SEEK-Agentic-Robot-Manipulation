@@ -7,10 +7,10 @@
     ".gitignore": "0d665ee40e5309562ef2927a2c70f3e71667778886300e98a241e51c50b790ea",
     ".nojekyll": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "LICENSE": "25bceb37f866864989e6f6ca680520163cbb40f980881d149004d632b1d03f4c",
-    "README.md": "4dc145e03347d6812174ba809df873c0ad75b912453b11fbd2140464e6beb53a",
+    "README.md": "b9dd1d008d723c0c4415c81fbcb5d4c62ddc3d5d29406f7678db3fcb601278b2",
     "docs/METHOD.md": "9dbfbf50d55fd8f4918576e1e6daa38ac90153130927cc8c03dbb3fe4ac3fa27",
     "docs/SETUP.md": "4de68863776eb12430a566992d9506e9b90d0937a7734be6fff52a6b2bdfde71",
-    "index.html": "b840b4a211dea770ee9429735682dd469b3c1c20feb050f4211f44cf8a8ea7dd",
+    "index.html": "380b85bb8eca0be31dcbdb804432d59268deeb4633ba4ded7918e3b96665775c",
     "runtime/configs/data.lock.json": "9bf0a7601697ae2913362caeaf958c1d5d0bd2cb3caa9049fd2fc283bb6e3d8a",
     "runtime/configs/perception-runtime.json": "648e5c4be8207942b1a142909a235c495d9e97abf4577b6cd0dce2d47843cf0d",
     "runtime/configs/protocols/seek.json": "19c66831262bf5035efff27db80f47ddee2aaaa29e8f68ba53277474eab3c371",
@@ -149,6 +149,6 @@
     "web/log.js": "622cbf551041b7e3870350a8ded24426a68d5089196e01579c9bf4a1706b93f4",
     "web/polish.css": "5f024a3ef93b4a91ef851aab2383f4dfbf59341a1b0d0aad305ae870e1bc2bb8",
     "web/polish.js": "8a6d298b6976179e110733db7444af9a9e5efab15a3e5f095dc43ad15dea3e46",
-    "web/style.css": "481b536d1144036a95a330bb27036032d6fe9e2a513e14e2e8067b64db19e06d"
+    "web/style.css": "104bfffcbc15ac11f394b3f093196d068fb2db98a6205e3673e069571fd219f7"
   }
 }

@@ -519,10 +519,6 @@ a.btn-main:hover {
   color: var(--ink);
 }
 
-.btn-off {
-  color: var(--gray);
-}
-
 .btn small {
   color: var(--gray);
   font-size: 0.78em;
@@ -1536,11 +1532,6 @@ a.card:hover {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
-}
-
-.card-link.off {
-  color: var(--dim);
-  cursor: default;
 }
 
 button.card-link:hover {
