@@ -67,7 +67,7 @@ def validate_proposal(deltas, grippers):
 
 def measure_joint_motion(env, observation, query):
     from .motion_query import command
-    from .observed_ik_continuity import IKContinuityError
+    from .ik_continuity import IKContinuityError, arm_joint_limits
 
     validate_proposal(query['joint_deltas'], query['grippers'])
     manager, state = env.robot_manager, observation['state']
@@ -90,7 +90,7 @@ def measure_joint_motion(env, observation, query):
         targets[arm+'_ee_pose'] = goal
         targets[arm+'_ee_joint_state'] = [query['grippers'][arm]]
         candidates[manager.process_name(robot.arm_name)] = dict(status='Success', current=current,
-            target=target, joint_limits=manager.get_joint_limits(robot, env_idx_list=[0])[0],
+            target=target, joint_limits=arm_joint_limits(manager, robot),
             periodic=getattr(robot, 'robot_name', None) == 'x5')
     action = command_delta(targets, state)
     packed = command(action, state)

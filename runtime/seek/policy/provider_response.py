@@ -5,9 +5,11 @@ import time
 
 MAX_RETRY_AFTER_S = 60.0
 TRUNCATED = 'provider_stream_truncated'
-TERMINAL_EVENTS = ('response.failed', 'response.incomplete')
+TERMINAL_STATUS = ('failed', 'incomplete')
+TERMINAL_EVENTS = tuple(f'response.{status}' for status in TERMINAL_STATUS)
 TRACED_EVENTS = ('response.created', 'response.completed', *TERMINAL_EVENTS, 'error')
 REPORTED_FIELDS = ('type', 'code', 'reason', 'message', 'param')
+CLASSIFIED_FIELDS = ('type', 'code', 'reason')
 COMPARISON_PARAMETER = 'prompt_cache_options.comparison_response_id'
 TRANSIENT_MARKERS = (
     'rate_limit', 'too_many_requests', 'server_error', 'overloaded',
@@ -50,10 +52,13 @@ class TruncatedResponseError(ProviderResponseError):
     retryable = True
 
 
+FAILURE_TYPES = {'response.failed': FailedResponseError, 'response.incomplete': IncompleteResponseError}
+
+
 def _mentions(details, markers):
     if not isinstance(details, dict):
         return False
-    text = ' '.join(str(details.get(key, '')).lower() for key in ('type', 'code', 'reason'))
+    text = ' '.join(str(details.get(key, '')).lower() for key in CLASSIFIED_FIELDS)
     return any(marker in text for marker in markers)
 
 
@@ -65,26 +70,15 @@ def is_deterministic(details):
     return _mentions(details, DETERMINISTIC_MARKERS)
 
 
-def _error_code(details, fallback):
-    if not isinstance(details, dict):
-        return fallback
-    value = details.get('code') or details.get('type') or details.get('reason')
-    return str(value)[:128] if value else fallback
-
-
-def _recovery(error_code, details):
-    if error_code == 'invalid_encrypted_content':
-        return 'drop_reasoning_items'
-    if isinstance(details, dict) and (
-            error_code == 'invalid_comparison_response_id'
-            or details.get('param') == COMPARISON_PARAMETER):
-        return 'drop_comparison_response_id'
-    return None
-
-
 def _classify(details, fallback, retryable, max_attempts):
-    error_code = _error_code(details, fallback)
-    recovery = _recovery(error_code, details)
+    named = isinstance(details, dict) and (details.get('code') or details.get('type') or details.get('reason'))
+    error_code = str(named)[:128] if named else fallback
+    recovery = None
+    if error_code == 'invalid_encrypted_content':
+        recovery = 'drop_reasoning_items'
+    elif isinstance(details, dict) and (error_code == 'invalid_comparison_response_id'
+                                        or details.get('param') == COMPARISON_PARAMETER):
+        recovery = 'drop_comparison_response_id'
     if recovery is not None:
         retryable, max_attempts = True, 2
     return dict(retryable=retryable, error_code=error_code, recovery=recovery,
@@ -97,133 +91,121 @@ def _describe(source, kind, details):
     return f'{source} terminal failure: {kind}; ' + json.dumps(details, ensure_ascii=False)[:2000]
 
 
-def raise_terminal_failure(kind, event, response=None, source='SSE'):
-    if response is None:
-        nested = event.get('response') if isinstance(event, dict) else None
-        response = nested if isinstance(nested, dict) else {}
-    details = (event.get('error') or response.get('error')
-               or response.get('incomplete_details')
+def _retry_policy(kind, details):
+    filtered = (kind == 'response.incomplete' and isinstance(details, dict)
+                and details.get('reason') == 'content_filter')
+    if filtered:
+        return True, 3
+    if is_transient(details):
+        return True, None
+    if is_deterministic(details):
+        return False, None
+    return True, 2
+
+
+def _fail(kind, event, response, source):
+    details = (event.get('error') or response.get('error') or response.get('incomplete_details')
                or event.get('incomplete_details') or event)
-    max_attempts = None
-    if (kind == 'response.incomplete' and isinstance(details, dict)
-            and details.get('reason') == 'content_filter'):
-        retryable, max_attempts = True, 3
-    elif is_transient(details):
-        retryable = True
-    elif is_deterministic(details):
-        retryable = False
-    else:
-        retryable, max_attempts = True, 2
-    outcome = _classify(details, kind.replace('.', '_'), retryable, max_attempts)
-    error_type = {
-        'response.incomplete': IncompleteResponseError,
-        'response.failed': FailedResponseError,
-    }[kind]
-    raise error_type(_describe(source, kind, details), **outcome)
+    outcome = _classify(details, kind.replace('.', '_'), *_retry_policy(kind, details))
+    raise FAILURE_TYPES[kind](_describe(source, kind, details), **outcome)
 
 
-def _raise_error_event(event, response):
-    details = (event.get('error') or response.get('error')
-               or response.get('incomplete_details') or event)
+def _fail_error_event(event, response):
+    details = event.get('error') or response.get('error') or response.get('incomplete_details') or event
     outcome = _classify(details, 'error', is_transient(details), None)
     error_type = TransientResponseError if outcome['retryable'] else ProviderResponseError
     raise error_type(_describe('SSE', 'error', details), **outcome)
 
 
-def validate_json_response(response):
-    if not isinstance(response, dict):
+def validate_json_response(body):
+    if not isinstance(body, dict):
         raise TypeError('Responses JSON body must be an object')
-    status = response.get('status')
-    if status in ('failed', 'incomplete'):
-        raise_terminal_failure(f'response.{status}', response, response=response, source='JSON')
-    nested = response.get('response')
-    kind = response.get('type')
-    if kind in TERMINAL_EVENTS:
-        raise_terminal_failure(
-            kind, response, response=nested if isinstance(nested, dict) else {}, source='JSON')
-    if isinstance(nested, dict) and nested.get('status') in ('failed', 'incomplete'):
-        raise_terminal_failure(
-            f"response.{nested['status']}", response, response=nested, source='JSON')
-    return response
+    nested = body.get('response')
+    inner = nested if isinstance(nested, dict) else {}
+    if body.get('status') in TERMINAL_STATUS:
+        _fail(f"response.{body['status']}", body, body, 'JSON')
+    if body.get('type') in TERMINAL_EVENTS:
+        _fail(body['type'], body, inner, 'JSON')
+    if inner.get('status') in TERMINAL_STATUS:
+        _fail(f"response.{inner['status']}", body, inner, 'JSON')
+    return body
 
 
 def _frames(reply, deadline):
-    data = []
+    pending = []
     while True:
         if deadline is not None and time.monotonic() >= deadline:
             raise TimeoutError('SSE response deadline exceeded')
-        line = reply.readline()
-        if not line:
+        raw = reply.readline()
+        if not raw:
             raise TruncatedResponseError(
                 'SSE ended without response.completed', error_code=TRUNCATED, max_attempts=2)
         try:
-            line = line.decode('utf-8').rstrip('\r\n')
+            line = raw.decode('utf-8').rstrip('\r\n')
         except UnicodeDecodeError:
             raise TruncatedResponseError('Invalid UTF-8 SSE frame', error_code=TRUNCATED) from None
         if line.startswith('data:'):
-            data.append(line[5:].lstrip(' '))
-        elif not line and data:
-            frame, data = '\n'.join(data), []
+            pending.append(line[len('data:'):].lstrip(' '))
+        elif not line and pending:
+            frame, pending = '\n'.join(pending), []
             if frame.strip():
                 yield frame
 
 
+def _event(frame):
+    if frame == '[DONE]':
+        raise TruncatedResponseError(
+            'SSE DONE without response.completed', error_code=TRUNCATED, max_attempts=2)
+    try:
+        event = json.loads(frame)
+    except json.JSONDecodeError:
+        raise TruncatedResponseError('Invalid JSON SSE frame', error_code=TRUNCATED) from None
+    if not isinstance(event, dict):
+        raise ValueError('SSE event must be an object')
+    return event
+
+
 def read_sse_response(reply, record, deadline, on_event=None):
-    output_items = {}
+    finished_items = {}
     for frame in _frames(reply, deadline):
-        if frame == '[DONE]':
-            raise TruncatedResponseError(
-                'SSE DONE without response.completed', error_code=TRUNCATED, max_attempts=2)
-        try:
-            event = json.loads(frame)
-        except json.JSONDecodeError:
-            raise TruncatedResponseError('Invalid JSON SSE frame', error_code=TRUNCATED) from None
-        if not isinstance(event, dict):
-            raise ValueError('SSE event must be an object')
+        event = _event(frame)
         if on_event is not None:
             on_event(event)
         kind = event.get('type')
         if kind == 'response.output_item.done':
-            output_items[event['output_index']] = event['item']
+            finished_items[event['output_index']] = event['item']
         if kind in TRACED_EVENTS:
             record('sse_event', event_type=kind, response_id=event.get('response', {}).get('id'))
         if kind == 'response.completed':
             result = event['response']
             if result.get('status') != 'completed':
                 raise ValueError('Contradictory SSE completion status')
-            if not result.get('output') and output_items:
-                result['output'] = [output_items[index] for index in sorted(output_items)]
+            if not result.get('output') and finished_items:
+                result['output'] = [finished_items[index] for index in sorted(finished_items)]
             return result
         if kind in TERMINAL_EVENTS:
-            raise_terminal_failure(kind, event, response=event.get('response', {}))
+            _fail(kind, event, event.get('response', {}), 'SSE')
         if kind == 'error':
-            _raise_error_event(event, event.get('response', {}))
+            _fail_error_event(event, event.get('response', {}))
 
 
 def http_error_details(text):
     try:
         parsed = json.loads(text)
     except (TypeError, ValueError):
-        return None, None
-    if not isinstance(parsed, dict):
-        return None, None
-    details = parsed.get('error', parsed)
+        parsed = None
+    details = parsed.get('error', parsed) if isinstance(parsed, dict) else None
     if not isinstance(details, dict):
         return None, None
-    code = details.get('code') or details.get('type')
-    param = details.get('param')
-    return (str(code)[:128] if code is not None else None,
-            str(param)[:256] if param is not None else None)
+    code, parameter = details.get('code') or details.get('type'), details.get('param')
+    return (None if code is None else str(code)[:128],
+            None if parameter is None else str(parameter)[:256])
 
 
 def retry_after_seconds(headers):
-    if not headers:
-        return None
-    value = headers.get('retry-after') or headers.get('Retry-After')
+    value = (headers.get('retry-after') or headers.get('Retry-After')) if headers else None
     try:
         seconds = float(value)
     except (TypeError, ValueError):
         return None
-    if not math.isfinite(seconds):
-        return None
-    return min(max(seconds, 0.0), MAX_RETRY_AFTER_S)
+    return min(max(seconds, 0.0), MAX_RETRY_AFTER_S) if math.isfinite(seconds) else None

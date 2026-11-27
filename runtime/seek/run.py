@@ -1,8 +1,8 @@
 import argparse
-import base64
 import datetime
 import fcntl
 import hashlib
+import http.client
 import json
 import os
 import shutil
@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+from base64 import b64encode
 from pathlib import Path
 
 
@@ -34,35 +35,35 @@ if str(CODE) not in sys.path:
     sys.path.insert(0, str(CODE))
 
 from seek.config import (
-    layout_path as configured_layout_path,
+    layout_path as benchmark_layout,
     load_profile,
     load_task,
-    validate_evaluation_limits,
-    render_official_task_prompt,
+    official_task_prompt,
     task_name,
     task_source,
+    validate_evaluation_limits,
 )
 from seek.policy.provider_compat import validate_api_mode, validate_endpoint
-from seek.paths import data_root as get_data_root, results_root as get_results_root, python_paths
-from seek.upstream import verify_submodules
+from seek.paths import data_root as default_data_root, results_root as default_results_root, python_paths
+from seek.upstream import verify_packages
 
 
 def absolute_path(value):
     return Path(value).expanduser().absolute()
 
 
-def python_path(value):
+def executable(value):
     path = absolute_path(shutil.which(str(value)) or value)
-    if not path.is_file() or not os.access(path, os.X_OK):
-        raise FileNotFoundError(f"Python interpreter is not executable: {path}")
+    if not (path.is_file() and os.access(path, os.X_OK)):
+        raise FileNotFoundError(f"No executable at {path}")
     return path
 
 
 def sha(path):
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
+        while block := stream.read(1 << 20):
+            digest.update(block)
     return digest.hexdigest()
 
 
@@ -70,40 +71,39 @@ def optional_sha(path):
     return sha(path) if path.is_file() else None
 
 
-def policy_socket_ready(port):
-    with socket.create_connection(("127.0.0.1", port), timeout=1) as probe:
-        key = base64.b64encode(os.urandom(16)).decode("ascii")
-        probe.sendall((f"GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
-                       "Upgrade: websocket\r\nConnection: Upgrade\r\n"
-                       f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode("ascii"))
-        response = b""
-        while b"\r\n\r\n" not in response:
-            chunk = probe.recv(4096)
-            if not chunk or len(response) > 8192:
-                raise OSError("Policy did not return a WebSocket handshake")
-            response += chunk
-        if not response.startswith(b"HTTP/1.1 101 "):
-            raise OSError("Policy did not accept the WebSocket handshake")
-        probe.sendall(b"\x88\x80" + os.urandom(4))
+def policy_ready(port):
+    upgrade = {"Upgrade": "websocket", "Connection": "Upgrade", "Sec-WebSocket-Version": "13",
+               "Sec-WebSocket-Key": b64encode(os.urandom(16)).decode("ascii")}
+    link = http.client.HTTPConnection("127.0.0.1", port, timeout=1)
+    try:
+        link.request("GET", "/", headers=upgrade)
+        status = link.getresponse().status
+        if status != http.client.SWITCHING_PROTOCOLS:
+            raise OSError(f"The policy server answered the WebSocket probe with HTTP {status}")
+        link.sock.sendall(b"\x88\x80" + os.urandom(4))
+    except http.client.HTTPException as error:
+        raise OSError(f"The policy server did not complete the WebSocket probe: {error}") from error
+    finally:
+        link.close()
 
 
-def _explicit_assets(manifest, manifest_path, data_root, layout_path):
-    files = manifest.get("files")
-    if not isinstance(files, list) or not files:
-        raise ValueError(f"Explicit asset manifest contains no files: {manifest_path}")
-    checked = []
-    for row in files:
+def _listed_assets(manifest, manifest_path, data_root):
+    rows = manifest.get("files")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError(f"{manifest_path} lists no files")
+    listed = set()
+    for row in rows:
         relative = Path(row.get("path", ""))
-        if (not relative.parts or relative.parts[0] != "Assets" or relative.is_absolute()
-                or ".." in relative.parts or type(row.get("size")) is not int
-                or not isinstance(row.get("sha256"), str)):
-            raise ValueError(f"Invalid explicit asset record: {row}")
+        well_formed = (relative.parts and relative.parts[0] == "Assets" and not relative.is_absolute()
+                       and ".." not in relative.parts and type(row.get("size")) is int
+                       and isinstance(row.get("sha256"), str))
+        if not well_formed:
+            raise ValueError(f"Malformed asset record in {manifest_path}: {row}")
         path = data_root / relative
         if not path.is_file() or path.stat().st_size != row["size"] or sha(path) != row["sha256"]:
-            raise ValueError(f"Explicit asset differs from its manifest: {path}")
-        checked.append(relative.as_posix())
-    if layout_path.relative_to(data_root).as_posix() not in checked:
-        raise ValueError(f"Selected layout is outside the explicit asset manifest: {layout_path}")
+            raise ValueError(f"{path} does not match the asset manifest")
+        listed.add(relative.as_posix())
+    return listed
 
 
 def asset_preflight(data_root, layout_path):
@@ -112,21 +112,17 @@ def asset_preflight(data_root, layout_path):
     if not manifest_path.is_file():
         raise FileNotFoundError(f"Missing {manifest_path}; run setup/fetch_assets.py")
     manifest = json.loads(manifest_path.read_text())
-    if manifest.get("repo_id") != lock["repo_id"] or manifest.get("revision") != lock["revision"]:
-        raise ValueError(f"Asset dataset revision mismatch: {manifest_path}")
+    if any(manifest.get(key) != lock[key] for key in ("repo_id", "revision")):
+        raise ValueError(f"{manifest_path} describes another asset revision than configs/data.lock.json")
     scope = manifest.get("scope", "complete-tree")
     if scope == "explicit-files":
-        _explicit_assets(manifest, manifest_path, data_root, layout_path)
+        listed = _listed_assets(manifest, manifest_path, data_root)
+        if layout_path.relative_to(data_root).as_posix() not in listed:
+            raise ValueError(f"{manifest_path} does not list the selected layout: {layout_path}")
     elif scope != "complete-tree" or manifest.get("include") != lock["include"]:
-        raise ValueError(f"Unknown or incomplete asset manifest scope: {manifest_path}")
-    return {
-        "manifest": str(manifest_path),
-        "manifest_sha256": sha(manifest_path),
-        "repo_id": lock["repo_id"],
-        "revision": lock["revision"],
-        "scope": scope,
-        "assets_tree_sha256": manifest.get("assets_tree_sha256"),
-    }
+        raise ValueError(f"{manifest_path} does not cover the locked asset tree")
+    return dict(manifest=str(manifest_path), manifest_sha256=sha(manifest_path), repo_id=lock["repo_id"],
+                revision=lock["revision"], scope=scope, assets_tree_sha256=manifest.get("assets_tree_sha256"))
 
 
 def harness_config(task_config, profile, action_horizon):
@@ -136,7 +132,7 @@ def harness_config(task_config, profile, action_horizon):
     validate_evaluation_limits(config, profile)
     if config.get("experience_horizon_from_budget"):
         config.update(execute_horizon=config['predict_horizon'], fixed_predict_horizon=False)
-    version, source, prompt = render_official_task_prompt(task_config)
+    version, source, prompt = official_task_prompt(task_config)
     config["official_task_documentation_version"] = version
     config["official_task_documentation_source"] = source
     config["official_task_prompt"] = prompt
@@ -145,15 +141,15 @@ def harness_config(task_config, profile, action_horizon):
         if config.get("experience_horizon_from_budget"):
             config.update(experience_horizon_from_budget=False)
     if not 1 <= config["predict_horizon"] <= 64:
-        raise ValueError("action horizon must be 1..64")
+        raise ValueError("The action horizon is between 1 and 64 steps")
     return config
 
 
 def check(task, seed, layout, variant, action_horizon=None, *,
           data_root=None, sim_python=None, policy_python=None, profile=None):
-    data_root = get_data_root(data_root)
-    sim_python = python_path(sim_python or os.environ.get("SEEK_SIM_PYTHON", sys.executable))
-    policy_python = python_path(policy_python or os.environ.get("SEEK_POLICY_PYTHON", sys.executable))
+    data_root = default_data_root(data_root)
+    sim_python = executable(sim_python or os.environ.get("SEEK_SIM_PYTHON", sys.executable))
+    policy_python = executable(policy_python or os.environ.get("SEEK_POLICY_PYTHON", sys.executable))
     if profile is None:
         profile = load_profile(os.environ.get("SEEK_PROFILE", CODE / "configs/protocols/seek.json"))
     api_mode = profile.get("api_mode", "responses")
@@ -164,7 +160,7 @@ def check(task, seed, layout, variant, action_horizon=None, *,
     actual = task_name(task, variant)
     required = [
         task_source(task, variant),
-        configured_layout_path(data_root, task, seed, layout, variant),
+        benchmark_layout(data_root, task, seed, layout, variant),
         sim_python,
         policy_python,
     ]
@@ -189,21 +185,19 @@ def stop(process):
             return
 
 
-def acquire_gpu_slot(gpu, requested_slot=None, *, results_root=None):
-    results_root = get_results_root(results_root)
-    slots = [requested_slot] if requested_slot is not None else range(GPU_SLOTS)
+def claim_gpu_slot(gpu, requested=None, *, results_root):
     host = socket.gethostname()
-    for slot in slots:
-        lock = (results_root / f".{host}.gpu{gpu}.slot{slot}.lock").open("a")
+    for slot in range(GPU_SLOTS) if requested is None else [requested]:
+        handle = (results_root / f".{host}.gpu{gpu}.slot{slot}.lock").open("a")
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            lock.close()
-        else:
-            return slot, lock
-    if requested_slot is None:
+            handle.close()
+            continue
+        return slot, handle
+    if requested is None:
         raise RuntimeError(f"Both SEEK slots on GPU {gpu} are occupied")
-    raise RuntimeError(f"SEEK slot {requested_slot} on GPU {gpu} is occupied")
+    raise RuntimeError(f"SEEK slot {requested} on GPU {gpu} is occupied")
 
 
 def argument_parser():
@@ -215,25 +209,25 @@ def argument_parser():
     parser.add_argument("--variant", choices=["standard", "random"], default="standard")
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--gpu-slot", type=int, choices=range(GPU_SLOTS))
-    parser.add_argument("--model", help="CLI override; otherwise ASTRA_MODEL, then profile model")
+    parser.add_argument("--model", help="Model name; defaults to ASTRA_MODEL, then the profile")
     parser.add_argument("--harness-profile", "--profile", dest="harness_profile",
                         default=os.environ.get("SEEK_PROFILE", str(CODE / "configs/protocols/seek.json")))
-    parser.add_argument("--data-root", default=str(get_data_root()),
-                        help="Directory containing Assets/ and runtime-data/")
-    parser.add_argument("--results-root", default=str(get_results_root()))
+    parser.add_argument("--data-root", default=str(default_data_root()),
+                        help="Folder that holds the benchmark Assets/")
+    parser.add_argument("--results-root", default=str(default_results_root()))
     parser.add_argument("--sim-python", default=os.environ.get("SEEK_SIM_PYTHON", sys.executable))
     parser.add_argument("--policy-python", default=os.environ.get("SEEK_POLICY_PYTHON", sys.executable))
     parser.add_argument("--conda-exe", default=os.environ.get("SEEK_CONDA_EXE"),
-                        help="Optional conda executable for activating each interpreter's environment")
+                        help="Start both interpreters through this conda executable")
     parser.add_argument("--port", type=int)
-    parser.add_argument("--action-horizon", type=int, default=None, help="Override both prediction and execution steps")
+    parser.add_argument("--action-horizon", type=int, default=None, help="Set the predicted and the executed steps per request")
     parser.add_argument("--reasoning-effort", choices=["low", "medium", "high", "xhigh", "max"], default=None)
     output = parser.add_mutually_exclusive_group()
     output.add_argument("--max-output-tokens", type=int, default=None)
     output.add_argument("--omit-max-output-tokens", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--capture-only", action="store_true",
-                        help="Render diagnostic only; no policy API or robot actions")
+                        help="Render the cameras only; no model requests, no robot actions")
     return parser
 
 
@@ -326,11 +320,10 @@ def wait_for_policy(policy, port, out):
         if policy.poll() is not None:
             raise RuntimeError(f"Policy exited {policy.returncode}; see {out}/server.log")
         try:
-            policy_socket_ready(port)
-            return
+            return policy_ready(port)
         except OSError:
             if time.monotonic() > deadline:
-                raise TimeoutError("Policy startup exceeded 300 seconds")
+                raise TimeoutError(f"The policy server was not ready after {POLICY_STARTUP_S} seconds")
             time.sleep(POLL_S)
 
 
@@ -349,11 +342,11 @@ def wait_for_evaluator(evaluator, policy):
 def check_camera_probe(out):
     probe = out / "capture/capture_probe.json"
     if not probe.exists():
-        raise RuntimeError("Capture-only run did not produce camera probe")
+        raise RuntimeError(f"The capture-only run wrote no {probe.name}")
     observed = [row for row in json.loads(probe.read_text()) if row["route"] == "observation"]
     if len(observed) != PROBE_FRAMES or any(
             row["max"] == 0 or row["shape"] != PROBE_SHAPE for row in observed):
-        raise RuntimeError("Camera probe invalid")
+        raise RuntimeError("The camera probe holds blank, missing or wrongly sized frames")
 
 
 def collect_score(args, results_root, task, runid, out):
@@ -418,12 +411,8 @@ def supervise(args, plan):
     finally:
         stop(evaluator)
         stop(policy)
-        (out / "status.json").write_text(json.dumps({
-            "status": status,
-            "returncode": rc,
-            "launch_wall_s": time.monotonic() - started,
-            "note": "Process exit is not task success; read evaluator scores.",
-        }, indent=2))
+        (out / "status.json").write_text(json.dumps(
+            dict(status=status, returncode=rc, launch_wall_s=time.monotonic() - started), indent=2))
     print(f"{status}: {out}", flush=True)
     return rc
 
@@ -438,8 +427,8 @@ def plan_attempt(parser, args):
     paths = dict(
         data_root=absolute_path(args.data_root),
         results_root=absolute_path(args.results_root),
-        sim_python=python_path(args.sim_python),
-        policy_python=python_path(args.policy_python),
+        sim_python=executable(args.sim_python),
+        policy_python=executable(args.policy_python),
     )
     profile_path = absolute_path(args.harness_profile)
     profile = load_profile(profile_path)
@@ -447,7 +436,7 @@ def plan_attempt(parser, args):
     api_mode = profile.get("api_mode", "responses")
     if profile.get("launch_blocked_reason") and not (args.dry_run or args.capture_only):
         raise RuntimeError("Provider profile is launch-blocked: " + profile["launch_blocked_reason"])
-    paths["conda_exe"] = python_path(args.conda_exe) if args.conda_exe else None
+    paths["conda_exe"] = executable(args.conda_exe) if args.conda_exe else None
 
     _, task, config, layout_path = check(
         args.task, args.seed, args.layout, args.variant, args.action_horizon,
@@ -519,8 +508,8 @@ def create_run_directory(args, plan):
                 raise ValueError(f"Supply {key} externally")
     results_root = plan["paths"]["results_root"]
     results_root.mkdir(parents=True, exist_ok=True)
-    record["gpu_slot"], plan["gpu_lock"] = acquire_gpu_slot(
-        args.gpu, args.gpu_slot, results_root=results_root)
+    record["gpu_slot"], plan["gpu_lock"] = claim_gpu_slot(
+        args.gpu, args.gpu_slot, results_root=default_results_root(results_root))
     out.mkdir()
     (out / "harness.json").write_text(json.dumps(plan["config"], indent=2))
     record["code_commit"] = git_output("rev-parse", "HEAD").strip()
@@ -535,7 +524,7 @@ def main():
     if min(args.seed, args.layout, args.gpu) < 0:
         parser.error("seed/layout/gpu must be nonnegative")
     plan = plan_attempt(parser, args)
-    plan["record"]["upstream"] = verify_submodules()
+    plan["record"]["upstream"] = verify_packages()
     if args.dry_run:
         print(json.dumps(plan["record"], ensure_ascii=False, indent=2))
         return 0

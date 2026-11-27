@@ -42,17 +42,16 @@ def capture(env, env_ids):
             _log({'event': 'recovered', 'render_only_retries': len(attempts), 'attempts': attempts})
         return observations
     _log({'event': 'failed', 'attempts': attempts})
-    env._policy_failure = {
-        'method': 'camera_capture', 'exception_type': 'RuntimeError',
-        'classification': 'camera_capture_failure', 'official_score': None,
-        'capture_attempts': len(attempts), 'render_only_retries': len(attempts) - 1,
-        'blank_cameras': attempts[-1]['blank_cameras'], 'attempts': attempts,
-    }
-    raise RuntimeError('Camera capture remained blank after 30 render-only retries; no API request sent')
+    env._policy_failure = dict(
+        method='camera_capture', exception_type='RuntimeError',
+        classification='camera_capture_failure', official_score=None,
+        capture_attempts=len(attempts), render_only_retries=len(attempts) - 1,
+        blank_cameras=attempts[-1]['blank_cameras'], attempts=attempts)
+    raise RuntimeError(f'Cameras stayed blank through {RENDER_RETRIES} extra renders')
 
 
 def _log(record):
-    path = Path(os.environ['ASTRA_LOG_DIR']) / 'camera_readiness.jsonl'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a', encoding='utf-8') as stream:
+    folder = Path(os.environ['ASTRA_LOG_DIR'])
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / 'camera_readiness.jsonl').open('a', encoding='utf-8') as stream:
         stream.write(json.dumps(record) + '\n')

@@ -69,7 +69,7 @@ def measure_motion(env, observation, query):
     if query.get('space') == 'joint':
         from .joint_motion import measure_joint_motion
         return measure_joint_motion(env, observation, query)
-    from .observed_ik_continuity import IKContinuityError
+    from .ik_continuity import IKContinuityError, arm_joint_limits
     robot_state = observation['state']
     guard = env.ik_continuity_guard
     accepted = {}
@@ -92,7 +92,7 @@ def measure_motion(env, observation, query):
             candidates[name] = dict(status=solved['status'],
                 current=env.robot_manager.get_joint(robot, env_idx_list=[0])[0],
                 target=solved.get('joint_value'),
-                joint_limits=env.robot_manager.get_joint_limits(robot, env_idx_list=[0])[0],
+                joint_limits=arm_joint_limits(env.robot_manager, robot),
                 periodic=getattr(robot, 'robot_name', None) == 'x5')
         try:
             checks = guard.check(candidates)
@@ -130,7 +130,7 @@ def execute_measured_motion(env, action, solution):
                 and np.allclose(current, candidate['current'], rtol=0, atol=1e-6)):
             return dict(status='Success', joint_value=deepcopy(candidate['target']))
         if solution.get('space') == 'joint':
-            from .observed_ik_continuity import IKContinuityError
+            from .ik_continuity import IKContinuityError
             raise IKContinuityError([dict(arm=key, passed=False, error='stale_joint_query',
                 reason='Joint intent requires a new query at the current physical state')])
         return original(target_pose=target_pose, env_idx=env_idx, robot=robot, **kwargs)

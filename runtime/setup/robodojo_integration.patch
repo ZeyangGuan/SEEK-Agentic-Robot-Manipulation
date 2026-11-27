@@ -21,28 +21,6 @@ index 3c13f7aa713290f4c613f0a3d53b6d6875b742c2..b81742fe1fbcdadcc8a1cfe64d4fe9c0
  
          self.episode_length_buf += 1
          self.common_step_counter += 1
-diff --git a/env/global_configs.py b/env/global_configs.py
-index 04dbff6d78c747a970ec437711e2c74b2d2fccf6..f5fbc21010af59705efaa419be5b1454107c3118 100644
---- a/env/global_configs.py
-+++ b/env/global_configs.py
-@@ -6,9 +6,14 @@ current_dir = os.path.dirname(current_file)
- ROOT_DIR = os.path.join(current_dir, "..")
- 
- BENCHMARK = "RoboDojo"
--ASSETS_PATH = os.path.join(ROOT_DIR, "Assets")
--OBJECTS_PATH = os.path.join(ROOT_DIR, f"Assets/Object/{BENCHMARK}")
--ROBOTS_PATH = os.path.join(ROOT_DIR, "Assets/Robots")
-+DATA_ROOT = os.path.abspath(os.environ.get("SEEK_DATA_ROOT", os.path.join(ROOT_DIR, "data")))
-+ASSETS_PATH = os.path.join(DATA_ROOT, "Assets")
-+OBJECTS_PATH = os.path.join(ASSETS_PATH, "Object", BENCHMARK)
-+ROBOTS_PATH = os.path.join(ASSETS_PATH, "Robots")
-+EVAL_RESULT_PATH = os.path.join(
-+    os.environ.get("SEEK_RESULTS_ROOT", os.path.join(ROOT_DIR, "results")),
-+    "eval_result",
-+)
- ENV_CONFIG_PATH = os.path.join(ROOT_DIR, "env_cfg")
- 
- ENV_REGEX_NAMESPACE = "{ENV_REGEX_NS}"
 diff --git a/env/observation_manager/obs_manager.py b/env/observation_manager/obs_manager.py
 index b64743fc3b08a4a3f939bdcc405ea0272dc68e21..bc85daf47da332a761ebf56ac74c49bb2c1669ca 100644
 --- a/env/observation_manager/obs_manager.py
@@ -75,42 +53,42 @@ index b64743fc3b08a4a3f939bdcc405ea0272dc68e21..bc85daf47da332a761ebf56ac74c49bb
                                      obs[env_idx]["action"][key] = position
                                      if self.robot_cfg["joint_states"]:
 diff --git a/env/planner_manager/curobo_planner.py b/env/planner_manager/curobo_planner.py
-index 311c0753a9e864ec05eec17e344f9b14de21f669..98405543ea86b0ef141538b03c0dd9a6443624e4 100644
+index 311c0753a9e864ec05eec17e344f9b14de21f669..97e79f42c33d80e31fd185272e6bf4062c8215d5 100644
 --- a/env/planner_manager/curobo_planner.py
 +++ b/env/planner_manager/curobo_planner.py
-@@ -22,6 +22,31 @@ from utils.transformer import calculate_target_pose
+@@ -1,4 +1,5 @@
+ from copy import deepcopy
++import os
+ 
+ from curobo.batch_motion_planner import BatchMotionPlanner, MotionPlannerCfg
+ from curobo.inverse_kinematics import InverseKinematics, InverseKinematicsCfg
+@@ -22,6 +23,25 @@ from utils.transformer import calculate_target_pose
  _curobo_runtime.cuda_graph_reset = True
  
  
-+def relocate_robot_asset_paths(kinematics, yml_path):
-+    from pathlib import Path, PurePosixPath
-+
-+    local_root = Path(yml_path).absolute().parent
-+    old_root = str(kinematics.get("asset_root_path", "")).replace("\\", "/")
-+    urdf_value = kinematics.get("urdf_path")
-+    if urdf_value:
-+        urdf = PurePosixPath(str(urdf_value).replace("\\", "/"))
-+        old_prefix = PurePosixPath(old_root) if old_root else None
-+        if old_prefix and urdf.is_relative_to(old_prefix):
-+            relative = urdf.relative_to(old_prefix)
-+        elif not urdf.is_absolute() and not (
-+            len(urdf.parts) > 0 and urdf.parts[0].endswith(":")
-+        ):
-+            relative = urdf
++def beside_config(kinematics, yml_path):
++    folder = os.path.dirname(os.path.abspath(yml_path))
++    urdf = str(kinematics.get("urdf_path") or "").replace("\\", "/")
++    if urdf:
++        root = str(kinematics.get("asset_root_path") or "").replace("\\", "/").rstrip("/")
++        if root and urdf.startswith(root + "/"):
++            relative = urdf[len(root) + 1:]
++        elif urdf.startswith("/") or ":" in urdf.split("/")[0]:
++            relative = urdf.rsplit("/", 1)[-1]
 +        else:
-+            relative = PurePosixPath(urdf.name)
-+        local_urdf = local_root / str(relative)
-+        if not local_urdf.is_file():
-+            raise FileNotFoundError(f"Robot URDF missing beside {yml_path}: {local_urdf}")
-+        kinematics["urdf_path"] = str(local_urdf)
-+    kinematics["asset_root_path"] = str(local_root)
++            relative = urdf
++        located = os.path.join(folder, relative)
++        if not os.path.isfile(located):
++            raise FileNotFoundError(f"{yml_path} names a URDF that is not beside it: {located}")
++        kinematics["urdf_path"] = located
++    kinematics["asset_root_path"] = folder
 +    return kinematics
 +
 +
  class CuroboPlanner:
      def __init__(
          self,
-@@ -405,6 +430,8 @@ class CuroboPlanner:
+@@ -405,6 +425,8 @@ class CuroboPlanner:
              "status": "Success",
              "joint_names": self.active_joints_name,
              "joint_value": joint_solution,
@@ -119,41 +97,19 @@ index 311c0753a9e864ec05eec17e344f9b14de21f669..98405543ea86b0ef141538b03c0dd9a6
          }
  
      def _trans_from_world_to_base(self, base_pose, target_pose):
-@@ -425,6 +452,7 @@ class CuroboPlanner:
+@@ -425,6 +447,7 @@ class CuroboPlanner:
      def _build_robot_and_scene_cfg(self, yml_data, table_height):
          """Translate a Maniverse-style yml into v2 robot_cfg + scene_model."""
          kinematics = deepcopy(yml_data.get("robot_cfg", {}).get("kinematics", {}))
-+        kinematics = relocate_robot_asset_paths(kinematics, self.yml_path)
++        kinematics = beside_config(kinematics, self.yml_path)
          ee_link = kinematics.get("ee_link", None)
          tool_frames = kinematics.get("tool_frames", None)
          if tool_frames is None:
 diff --git a/env/robot_manager/robot_manager.py b/env/robot_manager/robot_manager.py
-index 11b552c805a1c198e58c3ca24553f2d801fb9e71..2623996fa3a2009ad43594b370de3720244178ba 100644
+index 11b552c805a1c198e58c3ca24553f2d801fb9e71..e03deaee0df5b7453f6d6601f13b86d99d55724f 100644
 --- a/env/robot_manager/robot_manager.py
 +++ b/env/robot_manager/robot_manager.py
-@@ -185,6 +185,21 @@ class RobotManager:
-                 results[env_idx] = None
-         return results
- 
-+    def get_joint_limits(self, robot, env_idx_list=None):
-+        if env_idx_list is None:
-+            env_idx_list = list(range(self.num_envs))
-+
-+        results = {}
-+        key = self.robot_key[self.robot_list.index(robot)]
-+        limits = key.data.joint_pos_limits.clone()
-+        for env_idx in range(self.num_envs):
-+            if env_idx in env_idx_list:
-+                selected = deepcopy(limits[env_idx][robot.arm_joint_indices])
-+                results[env_idx] = np.array(selected.cpu())
-+            else:
-+                results[env_idx] = None
-+        return results
-+
-     def get_end_effector_real_val(self, robot, env_idx_list=None):
-         if env_idx_list is None:
-             env_idx_list = list(range(self.num_envs))
-@@ -501,6 +516,9 @@ class RobotManager:
+@@ -501,6 +501,9 @@ class RobotManager:
          for idx, robot in enumerate(self.robot_list):
              robot.gripper_joint_indices, gripper_names = self.robot_key[idx].find_joints(robot.gripper_joints_name)
              robot.gripper_joints_name = gripper_names
@@ -163,7 +119,7 @@ index 11b552c805a1c198e58c3ca24553f2d801fb9e71..2623996fa3a2009ad43594b370de3720
  
              if robot.robot_type == "arm":
                  robot.arm_joint_indices, arm_names = self.robot_key[idx].find_joints(robot.arm_joints_name)
-@@ -532,7 +550,9 @@ class RobotManager:
+@@ -532,7 +535,9 @@ class RobotManager:
          )
          for idx, robot in enumerate(self.robot_list):
              if self.use_scene_cfg[idx]:
@@ -227,74 +183,67 @@ index 103b8b772e7a319d52f939b55e4c643b602c958b..4dc52ec98c25a287f1776d92782c3bf9
      def get_joint_info(self, joint_name: str = "button_joint"):
          if joint_name not in self.dof_names:
 diff --git a/env/scene_manager/objects/fluid.py b/env/scene_manager/objects/fluid.py
-index 4d2aa3ccd4ba63e5667dd6bb88e6193ee5aca44b..825614eca81ff2151aea6addbb200315d2f7208d 100644
+index 4d2aa3ccd4ba63e5667dd6bb88e6193ee5aca44b..37e8db150adcb6ec4e0376ca3e391f951d2a3dac 100644
 --- a/env/scene_manager/objects/fluid.py
 +++ b/env/scene_manager/objects/fluid.py
-@@ -12,6 +12,7 @@ from omni.physx.scripts import particleUtils, physicsUtils
- from pxr import Gf, PhysxSchema, Sdf, UsdGeom, Vt
+@@ -13,6 +13,8 @@ from pxr import Gf, PhysxSchema, Sdf, UsdGeom, Vt
  from scipy.spatial import Delaunay
  import torch
-+from env.global_configs import ASSETS_PATH
  
++from env import global_configs
++
  
  class FluidObject:
-@@ -187,7 +188,7 @@ class FluidObject:
+     """
+@@ -187,7 +189,7 @@ class FluidObject:
          if visual_mdl_path:
              material_url = visual_mdl_path
          else:
 -            material_url = "./Assets/Material/Fluid/Linen_Blue.mdl"
-+            material_url = os.path.join(ASSETS_PATH, "Material", "Fluid", "Linen_Blue.mdl")
++            material_url = os.path.join(global_configs.ASSETS_PATH, "Material/Fluid/Linen_Blue.mdl")
          material_name = os.path.splitext(os.path.basename(material_url))[0]
          looks_path = f"{self.prim_path}/Looks"  # Consistent Looks path
          if is_prim_path_valid(f"{looks_path}/material"):  # Check specific material path
 diff --git a/src/eval_client/eval_env.py b/src/eval_client/eval_env.py
-index d2af1c000322a9cccbc477c1c3f4ecf4d42c46b5..06b6905fcf7719c02fc7bc856d57178949075962 100644
+index d2af1c000322a9cccbc477c1c3f4ecf4d42c46b5..0dbbdbad83d34b8c4a123975bbb0b2f87c078f36 100644
 --- a/src/eval_client/eval_env.py
 +++ b/src/eval_client/eval_env.py
-@@ -17,6 +17,7 @@ from env.seed_manager.seed_manager import SeedManager
- from utils.cluttered_generator import UnStableError
- from utils.pipeline_utils import get_robot_action_dim_info
- from utils.save_file import VideoStreamWriter, format_video_saved_message, save_json
-+from src.eval_client.ik_continuity import IKContinuityError
- 
- 
- def _patch_websockets_proxy_compat():
-@@ -78,7 +79,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -78,7 +78,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                  os.environ["ROBODOJO_RUN_ID"] = run_id
              self.run_id = run_id
              self.save_dir = os.path.join(
 -                "eval_result",
-+                EVAL_RESULT_PATH,
++                os.path.join(os.environ.get("SEEK_RESULTS_ROOT", ""), "eval_result"),
                  f"{BENCHMARK}",
                  self.task_name,
                  self.policy_name,
-@@ -273,8 +274,13 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -273,8 +273,13 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                  env_idx_list = list(range(self.num_envs))
              if self.physx_monitor_enabled:
                  self._check_endpose_finite(env_idx_list)
 -            self.obs_manager.render_for_capture()
 -            data = self.obs_manager.get_obs(env_idx_list=env_idx_list)
-+            if os.environ.get("ASTRA_VALIDATE_RGB") == "1":
++            if os.environ.get("ASTRA_VALIDATE_RGB") != "1":
++                self.obs_manager.render_for_capture()
++                data = self.obs_manager.get_obs(env_idx_list=env_idx_list)
++            else:
 +                from seek.policy.camera_readiness import capture
 +
 +                data = capture(self, env_idx_list)
-+            else:
-+                self.obs_manager.render_for_capture()
-+                data = self.obs_manager.get_obs(env_idx_list=env_idx_list)
              data_list = []
              for env_idx in env_idx_list:
                  if not self.end_flag[env_idx] or last_frame:
-@@ -359,6 +365,9 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -359,6 +364,9 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
              if self.physx_monitor_enabled:
                  self._check_physx_broken_envs()
              control_info_list = []
-+            pending_ik_commits = []
-+            pending_joint_syncs = []
++            guard = getattr(self, "ik_continuity_guard", None)
++            dispatched = []
 +            self._last_ik_execution_checks = {}
              if env_idx_list is None:
                  env_idx_list = list(range(self.num_envs))
              for idx, env_idx in enumerate(env_idx_list):
-@@ -368,12 +377,10 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -368,12 +376,8 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                  if self.take_action_cnt[env_idx] == self.step_lim or self.end_flag[env_idx]:
                      continue
  
@@ -304,72 +253,52 @@ index d2af1c000322a9cccbc477c1c3f4ecf4d42c46b5..06b6905fcf7719c02fc7bc856d571789
 -                    end="\r",
 -                )
                  control_info = dict()
-+                ik_guard = getattr(self, 'ik_continuity_guard', None)
-+                ik_candidates = {}
-+                direct_joint_targets = {}
++                solved, joint_targets, checks = {}, {}, None
                  if action_type == "joint":
                      for robot in self.robot_manager.robot_list:
                          if robot.type != "target":
-@@ -382,6 +389,8 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -382,6 +386,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                          control_info[key_name] = {
                              "position": action[key_name],
                          }
-+                        if ik_guard is not None:
-+                            direct_joint_targets[key_name] = action[key_name]
++                        joint_targets[key_name] = action[key_name]
  
                          key_name = self.robot_manager.process_name(robot.gripper_name)
                          if robot.ee_type == "gripper":
-@@ -417,6 +426,16 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -417,6 +422,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                              env_idx=env_idx,
                              robot=robot,
                          )
-+                        if ik_guard is not None:
-+                            ik_candidates[obs_name] = {
-+                                'status': ik_result['status'],
-+                                'current': self.robot_manager.get_joint(
-+                                    robot, env_idx_list=[env_idx])[env_idx],
-+                                'target': ik_result.get('joint_value'),
-+                                'joint_limits': self.robot_manager.get_joint_limits(
-+                                    robot, env_idx_list=[env_idx])[env_idx],
-+                                'periodic': getattr(robot, 'robot_name', None) == 'x5',
-+                            }
++                        solved[obs_name] = (robot, ik_result)
                          if ik_result["status"] == "Success":
                              control_info[obs_name] = {
                                  "position": ik_result["joint_value"],
-@@ -443,17 +462,46 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -443,17 +449,38 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                              }
                          else:
                              pass
-+                if ik_guard is not None and action_type == 'ee':
-+                    try:
-+                        checks = ik_guard.check(ik_candidates)
-+                    except IKContinuityError as exc:
-+                        ik_guard.record(self.take_action_cnt[env_idx] + 1,
-+                                        exc.checks, accepted=False)
-+                        raise
++                step = self.take_action_cnt[env_idx] + 1
++                if guard is not None and action_type == "ee":
++                    checks = guard.screen(self.robot_manager, env_idx, step, solved)
 +                    for check in checks:
-+                        control_info[check['arm']]['position'] = check['normalized_target_joints']
-+                    ik_attempt_step = self.take_action_cnt[env_idx] + 1
++                        control_info[check["arm"]]["position"] = check["normalized_target_joints"]
                  control_seq = self.process_control_info(control_info, env_idx)
-+                self.take_action_cnt[env_idx] += 1
++                self.take_action_cnt[env_idx] = step
 +                print(
 +                    f"env{env_idx} step: \033[92m{self.take_action_cnt[env_idx]} / {self.step_lim}\033[0m",
 +                    end="\r",
 +                )
                  control_info_list.append(control_seq)
-+                if ik_guard is not None and action_type == 'joint':
-+                    pending_joint_syncs.append((ik_guard, direct_joint_targets))
-+                elif ik_guard is not None and action_type == 'ee':
-+                    pending_ik_commits.append((ik_guard, env_idx, ik_attempt_step, checks))
++                dispatched.append((env_idx, step, checks, joint_targets))
  
              if len(control_info_list) > 0:
                  self.robot_manager.control_manager.push(env_idx_list, control_info_list)
-+                for guard, env_idx, attempt_step, checks in pending_ik_commits:
-+                    guard.record(attempt_step, checks, accepted=True)
-+                    guard.commit(checks)
-+                    self._last_ik_execution_checks[env_idx] = deepcopy(checks)
-+                for guard, targets in pending_joint_syncs:
-+                    guard.sync_joint_targets(targets)
++                if guard is not None:
++                    for env_idx, step, checks, joint_targets in dispatched:
++                        if checks is None:
++                            guard.sync_joint_targets(joint_targets)
++                        else:
++                            self._last_ik_execution_checks[env_idx] = guard.accept(step, checks)
 +                from utils.physics_trace import begin_trace
 +                trace = begin_trace(self, actions_list, env_idx_list)
                  while not self.have_empty(env_idx_list):
@@ -383,24 +312,16 @@ index d2af1c000322a9cccbc477c1c3f4ecf4d42c46b5..06b6905fcf7719c02fc7bc856d571789
              self.reward_manager.step(env_idx_list=env_idx_list)
              if getattr(self, "interact", False):
                  if hasattr(self, "query_support_arm_traj"):
-@@ -659,7 +707,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -659,7 +686,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
              locate by humans.
              """
              return os.path.join(
 -                "eval_result",
-+                EVAL_RESULT_PATH,
++                os.path.join(os.environ.get("SEEK_RESULTS_ROOT", ""), "eval_result"),
                  f"{BENCHMARK}",
                  self.task_name,
                  self.policy_name,
-@@ -769,6 +817,7 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
-             return {self.current_env_seed_map[i] for i in env_idxs if i in self.current_env_seed_map}
- 
-         def run_eval(self):
-+            self._scored_policy_failure = None
-             self.run_reward()
-             if hasattr(self, "get_score"):
-                 self.get_score()
-@@ -777,10 +826,35 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -777,10 +804,17 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                  if hasattr(self, "query_support_arm_traj"):
                      for env_idx in exist_envs:
                          self.query_support_arm_traj(env_idx=env_idx)
@@ -408,269 +329,48 @@ index d2af1c000322a9cccbc477c1c3f4ecf4d42c46b5..06b6905fcf7719c02fc7bc856d571789
 -                self.eval_one_episode_batch()
 -            else:
 -                self.eval_one_episode()
++            self._scored_policy_failure = None
 +            try:
 +                if self.eval_batch:
 +                    self.eval_one_episode_batch()
 +                else:
 +                    self.eval_one_episode()
-+            except Exception as original_error:
-+                failure = getattr(self, "_policy_failure", None)
-+                if not isinstance(failure, dict):
-+                    raise original_error
-+                finalized = False
-+                try:
-+                    from seek.policy.eval_failure import (
-+                        finalize_policy_failure,
-+                        preserve_failure,
-+                    )
++            except Exception:
++                from seek.policy.eval_failure import settle_failed_episode
 +
-+                    finalized = finalize_policy_failure(self)
-+                    if not finalized:
-+                        preserve_failure(self)
-+                except Exception as preserve_error:
-+                    if preserve_error is not original_error:
-+                        print(
-+                            "[EvalEnv] failed to preserve policy failure evidence: "
-+                            f"{type(preserve_error).__name__}: {preserve_error}",
-+                            flush=True,
-+                        )
-+                    raise original_error
-+                if not finalized:
-+                    raise original_error
++                if not settle_failed_episode(self):
++                    raise
              success = 0
              process_scores = self.reward_manager.get_score() if hasattr(self, "get_score") else None
              # Envs flagged unstable during the episode (e.g. make_kong's
-@@ -815,6 +889,14 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -815,6 +849,10 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                      "success": bool(self.success[env_idx]),
                      "score": episode_score,
                  }
-+                if getattr(self, "_scored_policy_failure", None):
-+                    self.eval_result["details"][index].update(
-+                        interrupted=True,
-+                        score_kind="interrupted_current_state",
-+                        executed_steps=int(self.take_action_cnt[env_idx]),
-+                        policy_error=dict(self._scored_policy_failure),
-+                    )
-+                    self.eval_result["policy_error"] = dict(self._scored_policy_failure)
++                if self._scored_policy_failure:
++                    from seek.policy.eval_failure import mark_interrupted
++
++                    mark_interrupted(self, index, env_idx)
                  video_path = os.path.join(self.save_dir, f"episode_{index:07d}.mp4")
                  self.save_video(env_idx, video_path, tag)
  
-@@ -830,6 +912,14 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
+@@ -830,6 +868,10 @@ def create_eval_env(config, app, resume_state=None, **kwargs):
                  self.eval_result["score"] = self.total_score / eval_time * 100
              self.eval_result["eval_time"] = eval_time
              save_json(self.eval_result, os.path.join(self.save_dir, "_result.json"))
-+            if getattr(self, "_scored_policy_failure", None):
-+                report = dict(self._scored_policy_failure)
-+                report.update(
-+                    scored=True,
-+                    score=self.eval_result["score"],
-+                    score_kind="interrupted_current_state",
-+                )
-+                save_json(report, os.path.join(self.save_dir, "_policy_error.json"))
++            if self._scored_policy_failure:
++                from seek.policy.eval_failure import write_policy_error
++
++                write_policy_error(self)
              # Refresh the resume manifest at the end of every batch so that a
              # downstream SIGABRT (which beats the in-process PhysXFatalError
              # handler) still recovers everything up to the previous batch.
-diff --git a/src/eval_client/ik_continuity.py b/src/eval_client/ik_continuity.py
-new file mode 100644
-index 0000000000000000000000000000000000000000..aaa808e9dc5fe8e8584b306c84d5394f5db9c4a1
---- /dev/null
-+++ b/src/eval_client/ik_continuity.py
-@@ -0,0 +1,161 @@
-+"""Reject discontinuous IK targets before any arm or gripper is dispatched.
-+
-+The guard checks only proprioception and IK joint targets.  It is not a
-+collision, contact, or task-progress detector.  Periodic joint coordinates are
-+normalised to the nearest legal equivalent before continuity is measured.
-+"""
-+
-+from copy import deepcopy
-+import json
-+from pathlib import Path
-+
-+import numpy as np
-+
-+
-+def _nearest_legal_angles(target, reference, limits, periodic):
-+    normalized = target.copy()
-+    valid = np.ones(target.shape, dtype=bool)
-+    for index in range(target.size):
-+        lower, upper = limits[index]
-+        if not periodic[index]:
-+            valid[index] = lower <= target[index] <= upper
-+            continue
-+        first_turn = int(np.ceil((lower - target[index]) / (2 * np.pi)))
-+        last_turn = int(np.floor((upper - target[index]) / (2 * np.pi)))
-+        if first_turn > last_turn:
-+            valid[index] = False
-+            continue
-+        nearest_turn = int(np.rint((reference[index] - target[index]) / (2 * np.pi)))
-+        turn = min(max(nearest_turn, first_turn), last_turn)
-+        normalized[index] = target[index] + turn * 2 * np.pi
-+    return normalized, valid
-+
-+
-+class IKContinuityError(ValueError):
-+    def __init__(self, checks):
-+        self.checks = deepcopy(checks)
-+        self.event = {
-+            'type': 'action_rejected_ik_continuity',
-+            'rejected_action_executed': False,
-+            'reason': ('IK targets failed joint continuity checks before dispatch. '
-+                       'Neither arm nor gripper executed this action. Replan from '
-+                       'the latest observed pose using smaller increments or another approach; '
-+                       'do not compensate for the unexecuted suffix.'),
-+            'checks': deepcopy(self.checks),
-+            'violations': [deepcopy(check) for check in self.checks if not check['passed']],
-+        }
-+        super().__init__(self.event['reason'])
-+
-+
-+class IKContinuityGuard:
-+    def __init__(self, max_joint_increment_rad=.15, log_path=None):
-+        if (isinstance(max_joint_increment_rad, bool)
-+                or not isinstance(max_joint_increment_rad, (int, float))
-+                or not np.isfinite(max_joint_increment_rad)
-+                or max_joint_increment_rad <= 0):
-+            raise ValueError('IK joint increment must be finite and positive')
-+        self.limit = float(max_joint_increment_rad)
-+        self.previous_targets = {}
-+        self.log_path = Path(log_path) if log_path else None
-+
-+    def check(self, candidates):
-+        if not isinstance(candidates, dict):
-+            raise ValueError('IK continuity requires a mapping of target arms')
-+        checks = []
-+        for arm, candidate in candidates.items():
-+            previous = self.previous_targets.get(arm)
-+            check = {'arm': arm, 'passed': False, 'limit_rad': self.limit,
-+                     'current_joints': None, 'target_joints': None,
-+                     'normalized_target_joints': None,
-+                     'previous_target': previous.tolist() if previous is not None else None}
-+            checks.append(check)
-+            if not isinstance(candidate, dict):
-+                check['error'] = 'invalid_candidate'
-+                continue
-+            for key, field in (('current', 'current_joints'), ('target', 'target_joints')):
-+                try:
-+                    value = np.asarray(candidate.get(key), dtype=float)
-+                    if value.ndim == 1 and value.size and np.isfinite(value).all():
-+                        check[field] = value.tolist()
-+                except (ValueError, TypeError):
-+                    pass
-+            status = candidate.get('status')
-+            if status != 'Success':
-+                check['error'] = 'ik_failed' if status is not None else 'invalid_candidate'
-+                continue
-+            try:
-+                current = np.asarray(candidate['current'], dtype=float)
-+                target = np.asarray(candidate['target'], dtype=float)
-+            except (ValueError, TypeError):
-+                check['error'] = 'invalid_joint_vector'
-+                continue
-+            if (current.ndim != 1 or not current.size or current.shape != target.shape
-+                    or not np.isfinite(current).all() or not np.isfinite(target).all()):
-+                check['error'] = 'invalid_joint_vector'
-+                continue
-+            try:
-+                limits = np.asarray(candidate['joint_limits'], dtype=float)
-+                periodic = np.broadcast_to(np.asarray(candidate['periodic'], dtype=bool), target.shape)
-+            except (KeyError, ValueError, TypeError):
-+                check['error'] = 'invalid_joint_metadata'
-+                continue
-+            if (limits.shape != (target.size, 2) or not np.isfinite(limits).all()
-+                    or np.any(limits[:, 0] > limits[:, 1])):
-+                check['error'] = 'invalid_joint_metadata'
-+                continue
-+            normalized, legal = _nearest_legal_angles(target, current, limits, periodic)
-+            check.update(current_joints=current.tolist(), target_joints=target.tolist(),
-+                         normalized_target_joints=normalized.tolist())
-+            if not legal.all():
-+                check['error'] = 'joint_target_out_of_bounds'
-+                check['out_of_bounds_joint_index'] = int(np.flatnonzero(~legal)[0])
-+                continue
-+            delta = np.abs(normalized - current)
-+            check.update(max_current_delta_rad=float(delta.max()),
-+                         current_delta_joint_index=int(delta.argmax()))
-+            if previous is not None:
-+                if previous.shape != target.shape:
-+                    check['error'] = 'joint_dimension_changed'
-+                    continue
-+                previous_equivalent, previous_legal = _nearest_legal_angles(
-+                    target, previous, limits, periodic)
-+                if not previous_legal.all():
-+                    check['error'] = 'joint_target_out_of_bounds'
-+                    check['out_of_bounds_joint_index'] = int(np.flatnonzero(~previous_legal)[0])
-+                    continue
-+                delta_previous = np.abs(previous_equivalent - previous)
-+                check.update(previous_target=previous.tolist(),
-+                             max_target_delta_rad=float(delta_previous.max()),
-+                             target_delta_joint_index=int(delta_previous.argmax()))
-+            check['passed'] = (check['max_current_delta_rad'] <= self.limit + 1e-6
-+                               and check.get('max_target_delta_rad', 0) <= self.limit + 1e-6)
-+            if not check['passed']:
-+                check['error'] = 'joint_target_jump'
-+        if not checks:
-+            raise ValueError('IK continuity requires target arm candidates')
-+        if any(not check['passed'] for check in checks):
-+            raise IKContinuityError(checks)
-+        return checks
-+
-+    def commit(self, checks):
-+        self.previous_targets.update({
-+            check['arm']: np.asarray(check['normalized_target_joints'], dtype=float).copy()
-+            for check in checks
-+        })
-+
-+    def sync_joint_targets(self, targets):
-+        for arm, target in (targets or {}).items():
-+            try:
-+                value = np.asarray(target, dtype=float)
-+            except (TypeError, ValueError):
-+                continue
-+            if value.ndim == 1 and value.size and np.isfinite(value).all():
-+                self.previous_targets[arm] = value.copy()
-+
-+    def record(self, step, checks, accepted):
-+        if self.log_path is None:
-+            return
-+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-+        with self.log_path.open('a', encoding='utf-8') as stream:
-+            stream.write(json.dumps({'attempted_step': step, 'accepted': accepted,
-+                                     'checks': checks}, allow_nan=False) + '\n')
-diff --git a/src/eval_client/main.py b/src/eval_client/main.py
-index d0c2c90553f6053c9b9825faffcfc3a2c3a3ce6a..8c09972a6b54a96088bec85c70b54672b5a7402d 100644
---- a/src/eval_client/main.py
-+++ b/src/eval_client/main.py
-@@ -65,7 +65,7 @@ args_cli = parser.parse_args()
- 
- # Safe to import before AppLauncher: env is a namespace package (no __init__)
- # and GLOBAL_CONFIGS only imports os, so this pulls in no app-dependent code.
--from env.global_configs import BENCHMARK, ROOT_DIR
-+from env.global_configs import BENCHMARK, EVAL_RESULT_PATH, ROOT_DIR
- 
- task_registry = importlib.import_module(f"task.{BENCHMARK}.task_registry")
- 
-@@ -152,7 +152,7 @@ def _resume_manifest_path(eval_cfg, run_id):
-     the writer and reader paths.
-     """
-     return os.path.join(
--        "eval_result",
-+        EVAL_RESULT_PATH,
-         BENCHMARK,
-         eval_cfg["task_name"],
-         eval_cfg["policy_name"],
 diff --git a/utils/physics_trace.py b/utils/physics_trace.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..c13992fd51df2bd519fbcf567d7ef056eea6ca2e
+index 0000000000000000000000000000000000000000..883c94ce84b4d9d15e24b6896b9aa73d37d8fcec
 --- /dev/null
 +++ b/utils/physics_trace.py
-@@ -0,0 +1,110 @@
-+"""Passive per-physics-step evidence, enabled only by an explicit output path.
-+
-+Contact output is net NORMAL contact force in world frame, not friction or a
-+pairwise contact manifold. Joint reaction wrench is not an actuator torque.
-+Implicit-actuator computed/applied torque is a PD estimate, not a solver readout.
-+"""
+@@ -0,0 +1,104 @@
 +import json
 +import os
 +from pathlib import Path

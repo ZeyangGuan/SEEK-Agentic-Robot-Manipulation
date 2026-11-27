@@ -11,31 +11,27 @@ SAVED_FRAMES = (0, FRAMES - 1)
 DEVICES = ('cuda', 'cpu')
 
 
-def _observation_rows(env, frame, folder):
-    rows = []
+def _statistics(pixels, may_be_empty=False):
+    measured = pixels.size or not may_be_empty
+    return dict(shape=list(pixels.shape), mean=float(pixels.mean()) if measured else None,
+                max=int(pixels.max()) if measured else None)
+
+
+def _observed(env, frame, folder):
     for camera, data in env.get_obs()['vision'].items():
         pixels = np.asarray(data['color'])
-        rows.append({'frame': frame, 'camera': camera, 'route': 'observation',
-                     'shape': list(pixels.shape), 'mean': float(pixels.mean()),
-                     'max': int(pixels.max())})
+        yield dict(frame=frame, camera=camera, route='observation', **_statistics(pixels))
         if frame in SAVED_FRAMES:
             Image.fromarray(pixels).save(folder / f'{camera}_{frame}.png')
-    return rows
 
 
-def _render_rows(env, frame):
-    rows = []
+def _rendered(env, frame):
     for index, view in enumerate(env.capture_manager.tiled_cameras):
         for device in DEVICES:
             raw = view._annotators['rgba'].get_data(device=device)
             pixels = raw.numpy() if hasattr(raw, 'numpy') else np.asarray(raw)
-            filled = bool(pixels.size)
-            rows.append({'frame': frame, 'camera': index, 'route': device,
-                         'product': str(view._render_product.path),
-                         'prim_paths': view.prim_paths, 'shape': list(pixels.shape),
-                         'mean': float(pixels.mean()) if filled else None,
-                         'max': int(pixels.max()) if filled else None})
-    return rows
+            yield dict(frame=frame, camera=index, route=device, product=str(view._render_product.path),
+                       prim_paths=view.prim_paths, **_statistics(pixels, may_be_empty=True))
 
 
 def run(env):
@@ -43,6 +39,6 @@ def run(env):
     folder.mkdir(parents=True, exist_ok=True)
     rows = []
     for frame in range(FRAMES):
-        rows += _observation_rows(env, frame, folder)
-        rows += _render_rows(env, frame)
+        rows.extend(_observed(env, frame, folder))
+        rows.extend(_rendered(env, frame))
     (folder / 'capture_probe.json').write_text(json.dumps(rows, indent=2), encoding='utf-8')

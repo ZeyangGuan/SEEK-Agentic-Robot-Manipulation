@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from seek.policy import transport_retry
 from seek.policy.model_request_budget import ModelRequestBudget
-from seek.policy.bounded_policy import RequestTransportError
+from seek.policy.model_gateway import RequestTransportError
 from seek.policy.provider_response import (read_sse_response, TruncatedResponseError, ProviderResponseError,
                                            retry_after_seconds)
 

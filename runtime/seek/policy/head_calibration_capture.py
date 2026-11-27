@@ -1,33 +1,43 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
+
 from .model_policy import STATE_KEYS, plain
 
 
-def array(value):
+SOURCE_NOTE = ('Live camera focal length/horizontal aperture/resolution with square-pixel pinhole projection; '
+               'Camera.get_world_pose(camera_axes=usd); environment origin subtracted')
+
+
+def finite(value):
     if hasattr(value, 'detach'):
         value = value.detach().cpu().numpy()
-    result = np.asarray(value, dtype=float)
-    if not np.isfinite(result).all():
-        raise ValueError('Nonfinite camera calibration')
-    return result
+    numbers = np.asarray(value, dtype=float)
+    if not np.isfinite(numbers).all():
+        raise ValueError('Camera calibration contains a non-finite value')
+    return numbers
+
+
+def _close(left, right, tolerance):
+    return np.allclose(left, right, atol=tolerance, rtol=0)
 
 
 def camera_arrays(camera):
-    k, transform, shape = (array(camera[key]) for key in
-        ('intrinsic_matrix', 'camera_to_environment', 'shape'))
-    if k.shape != (3, 3) or transform.shape != (4, 4) or shape.shape != (3,):
-        raise ValueError('Invalid head camera calibration shape')
-    if (min(k[0, 0], k[1, 1]) <= 1 or not np.allclose(k[2], [0, 0, 1], atol=1e-9, rtol=0)
-            or k[1, 0] != 0 or min(shape[:2]) <= 0 or shape[2] != 3
-            or not np.equal(shape, shape.astype(int)).all()
-            or not np.allclose(transform[3], [0, 0, 0, 1], atol=1e-7, rtol=0)
-            or not np.allclose(transform[:3, :3].T @ transform[:3, :3], np.eye(3), atol=1e-5, rtol=0)
-            or abs(np.linalg.det(transform[:3, :3]) - 1) > 1e-5):
-        raise ValueError('Invalid head camera intrinsics, pose, or image shape')
-    return k, transform, shape
+    intrinsics, pose, shape = (finite(camera[key]) for key in
+                               ('intrinsic_matrix', 'camera_to_environment', 'shape'))
+    if intrinsics.shape != (3, 3) or pose.shape != (4, 4) or shape.shape != (3,):
+        raise ValueError('Camera calibration has the wrong array shapes')
+    rotation = pose[:3, :3]
+    pinhole = (min(intrinsics[0, 0], intrinsics[1, 1]) > 1 and _close(intrinsics[2], [0, 0, 1], 1e-9)
+               and intrinsics[1, 0] == 0)
+    image = min(shape[:2]) > 0 and shape[2] == 3 and np.equal(shape, shape.astype(int)).all()
+    rigid = (_close(pose[3], [0, 0, 0, 1], 1e-7) and _close(rotation.T @ rotation, np.eye(3), 1e-5)
+             and abs(np.linalg.det(rotation) - 1) <= 1e-5)
+    if not (pinhole and image and rigid):
+        raise ValueError('Camera intrinsics, pose or image shape are not valid')
+    return intrinsics, pose, shape
 
 
-def rendered_pinhole_intrinsics(camera):
+def _pinhole(camera):
     width, height = camera.get_resolution()
     focal = width * camera.get_focal_length() / camera.get_horizontal_aperture()
     return np.array([[focal, 0., width / 2.], [0., focal, height / 2.], [0., 0., 1.]])
@@ -35,32 +45,29 @@ def rendered_pinhole_intrinsics(camera):
 
 def capture_camera_reference(env, obs, name):
     if env.num_envs != 1:
-        raise ValueError('Head calibration requires one live environment')
-    camera_manager = env.camera_manager
-    camera_id = camera_manager.camera_names[0].index(name)
-    camera = camera_manager.cameras[0][camera_id]
-    position, quaternion = camera.get_world_pose(camera_axes='usd')
-    p, q = array(position), array(quaternion)
-    if p.shape != (3,) or q.shape != (4,) or abs(np.linalg.norm(q) - 1) > .001:
-        raise ValueError('Invalid head camera world pose')
-    transform = np.eye(4)
-    transform[:3, :3] = Rotation.from_quat(q[[1, 2, 3, 0]]).as_matrix()
-    origin = array(env.robot_manager.scene.env_origins[0])
+        raise ValueError('Camera calibration needs a single environment')
+    manager = env.camera_manager
+    camera = manager.cameras[0][manager.camera_names[0].index(name)]
+    position, quaternion = (finite(value) for value in camera.get_world_pose(camera_axes='usd'))
+    if position.shape != (3,) or quaternion.shape != (4,) or abs(np.linalg.norm(quaternion) - 1) > .001:
+        raise ValueError(f'{name} reports an invalid world pose')
+    pose = np.eye(4)
+    pose[:3, :3] = Rotation.from_quat(quaternion[[1, 2, 3, 0]]).as_matrix()
+    origin = finite(env.robot_manager.scene.env_origins[0])
     if origin.shape != (3,):
-        raise ValueError('Invalid environment origin')
-    transform[:3, 3] = p - origin
-    k = rendered_pinhole_intrinsics(camera)
+        raise ValueError('The environment origin is not a 3-vector')
+    pose[:3, 3] = position - origin
+    intrinsics = _pinhole(camera)
     shape = list(obs['vision'][name]['color'].shape)
     if list(camera.get_resolution()) != [shape[1], shape[0]]:
-        raise ValueError('Live RGB resolution differs from head calibration')
-    head = {'intrinsic_matrix': k.tolist(), 'camera_to_environment': transform.tolist(), 'shape': shape}
-    camera_arrays(head)
-    return head
+        raise ValueError(f'{name} resolution differs from its RGB image')
+    reference = dict(intrinsic_matrix=intrinsics.tolist(), camera_to_environment=pose.tolist(), shape=shape)
+    camera_arrays(reference)
+    return reference
 
 
 def capture_head_calibration(env, obs):
     head = capture_camera_reference(env, obs, 'cam_head')
     state = {key: plain(obs['state'][key]) for key in STATE_KEYS}
-    return {'source': 'TEST_RUNTIME', 'head_reference': head,
-            'initial_sample': {'step': 0, 'state': state, 'head': head},
-            'camera_source': 'Live camera focal length/horizontal aperture/resolution with square-pixel pinhole projection; Camera.get_world_pose(camera_axes=usd); environment origin subtracted'}
+    return dict(source='TEST_RUNTIME', head_reference=head,
+                initial_sample=dict(step=0, state=state, head=head), camera_source=SOURCE_NOTE)

@@ -195,7 +195,7 @@ snapshot, and no post-attempt review runs.
 | `execution_receipt.py`, `action_feedback.py` | Execution receipts and the tracking-error guard |
 | `execution_progress.py` | Fixed progress monitor |
 | `motion_query.py`, `joint_motion.py` | Feasibility queries and joint-space proposals |
-| `observed_base_ik.py`, `observed_ik_continuity.py`, `joint_reference.py` | Inverse kinematics in the measured base frame and joint-continuity checks |
+| `observed_base_ik.py`, `ik_continuity.py`, `joint_reference.py` | Inverse kinematics in the measured base frame and joint-continuity checks |
 | `feature_geometry.py` | Local coordinates for pose features and goal errors |
 
 **PAEB**
@@ -226,7 +226,8 @@ snapshot, and no post-attempt review runs.
 |---|---|
 | `model_policy.py` | Observation whitelist |
 | `action_validation.py` | Chunk shape, per-step bounds, and conversion to executor commands |
-| `dialogue_policy.py`, `bounded_policy.py` | Request construction, budgets, and retries |
+| `dialogue_policy.py`, `robot_prompt.py` | Run settings, the robot-command instructions, and request sizing |
+| `model_gateway.py` | Model requests, budgets, and retries |
 | `provider_response.py` | Streamed responses and provider error classification |
 | `provider_compat.py`, `transport_retry.py` | Endpoint validation and transport retries |
 | `model_request_budget.py` | Per-attempt request accounting |

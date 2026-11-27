@@ -1,101 +1,99 @@
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
 from seek.paths import CODE, ROBODOJO
 
 
-def read_json(path: Path | str) -> dict:
-    value = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError(f"Expected a JSON object: {path}")
-    return value
+TASK_CONFIGS = CODE / "configs/tasks"
+TASK_SOURCES = "task/RoboDojo/tasks"
+LAYOUT_FOLDER = "Assets/Eval_Layout/RoboDojo/arx_x5"
+VARIANT_SUFFIX = {"standard": "", "random": "_random"}
+RUN_BUDGETS = ("max_turns", "max_seconds", "max_total_tokens")
+REQUEST_CAP = 150
+DOCUMENT_FIELDS = ("version", "source", "description")
 
 
-def validate_evaluation_limits(config: dict, profile: dict) -> None:
-    mode = profile.get('evaluation_mode', 'full_episode')
-    if mode not in ('full_episode', 'smoke'):
-        raise ValueError('evaluation_mode must be full_episode or smoke')
-    if mode == 'smoke':
-        return
-    caps = {key: config[key] for key in ('max_turns', 'max_seconds', 'max_total_tokens')
-            if config.get(key) is not None}
-    if caps:
-        raise ValueError('Full-episode evaluation cannot inherit local run budgets: '
-                         + str(caps) + '. Use null; bounded probes must explicitly declare evaluation_mode=smoke.')
-    limit = config.get('max_model_requests')
-    if limit is not None and (type(limit) is not int or limit != 150):
-        raise ValueError('Full-episode evaluation requires max_model_requests=null or 150')
-    timeout = config.get('request_timeout_s', 600)
-    if type(timeout) is not int or not 1 <= timeout <= 900:
-        raise ValueError('Full-episode evaluation still requires a finite per-request timeout')
+def read_json(path):
+    content = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(content, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return content
 
 
-def task_names() -> tuple[str, ...]:
-    return tuple(path.stem for path in sorted((CODE / "configs/tasks").glob("*.json")))
+def task_names():
+    return tuple(path.stem for path in sorted(TASK_CONFIGS.glob("*.json")))
 
 
-def load_task(name: str) -> dict:
-    path = CODE / "configs/tasks" / f"{name}.json"
+def load_task(name):
+    path = TASK_CONFIGS / f"{name}.json"
     if not path.is_file():
-        raise ValueError(f"Unknown configured benchmark task: {name}")
-    value = read_json(path)
-    return value
+        raise ValueError(f"No task configuration named {name}")
+    return read_json(path)
 
 
-def load_profile(path: Path | str) -> dict:
-    profile_path = Path(path)
-    profile = read_json(profile_path)
-    if not isinstance(profile.get("id"), str) or not profile["id"].strip():
-        raise ValueError("Protocol profile requires a non-empty id")
-    harness_overrides = profile.get("harness_overrides", {})
-    if not isinstance(harness_overrides, dict):
-        raise ValueError("Protocol harness_overrides must be an object")
+def load_profile(path):
+    profile = read_json(path)
+    name = profile.get("id")
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("A protocol profile needs a non-empty id")
+    if not isinstance(profile.get("harness_overrides", {}), dict):
+        raise ValueError("harness_overrides in a protocol profile must be an object")
     return profile
 
 
-def task_source(task: str, variant: str) -> Path:
-    if variant not in ("standard", "random"):
-        raise ValueError("variant must be standard or random")
-    actual = task + ("_random" if variant == "random" else "")
-    source = ROBODOJO / "task/RoboDojo/tasks" / f"{actual}.py"
+def validate_evaluation_limits(config, profile):
+    mode = profile.get("evaluation_mode", "full_episode")
+    if mode == "smoke":
+        return
+    if mode != "full_episode":
+        raise ValueError("evaluation_mode is either full_episode or smoke")
+    budgets = {key: config[key] for key in RUN_BUDGETS if config.get(key) is not None}
+    if budgets:
+        raise ValueError(f"A full episode runs without run budgets, but the configuration sets {budgets}; "
+                         "set them to null or declare evaluation_mode=smoke")
+    requests = config.get("max_model_requests")
+    if requests is not None and (type(requests) is not int or requests != REQUEST_CAP):
+        raise ValueError(f"max_model_requests for a full episode is null or {REQUEST_CAP}")
+    timeout = config.get("request_timeout_s", 600)
+    if type(timeout) is not int or not 1 <= timeout <= 900:
+        raise ValueError("request_timeout_s must be an integer from 1 to 900")
+
+
+def task_source(task, variant):
+    if variant not in VARIANT_SUFFIX:
+        raise ValueError(f"Unknown task variant: {variant}")
+    source = ROBODOJO / TASK_SOURCES / f"{task}{VARIANT_SUFFIX[variant]}.py"
     if not source.is_file():
-        raise FileNotFoundError(f"The benchmark has no {variant} implementation for {task}: {source}")
+        raise FileNotFoundError(f"RoboDojo has no {variant} version of {task}: {source}")
     return source
 
 
-def task_name(task: str, variant: str) -> str:
-    task_source(task, variant)
-    return task + ("_random" if variant == "random" else "")
+def task_name(task, variant):
+    return task_source(task, variant).stem
 
 
-def layout_path(data_root: Path, task: str, seed: int, layout: int,
-                variant: str = "standard") -> Path:
-    if type(seed) is not int or seed < 0 or type(layout) is not int or layout < 0:
-        raise ValueError("seed and layout must be nonnegative integers")
-    actual = task_name(task, variant)
-    return (Path(data_root) / "Assets/Eval_Layout/RoboDojo/arx_x5"
-            / str(seed) / f"{actual}_{layout}.json")
+def layout_path(data_root, task, seed, layout, variant="standard"):
+    for value in (seed, layout):
+        if type(value) is not int or value < 0:
+            raise ValueError("seed and layout are non-negative integers")
+    return Path(data_root) / LAYOUT_FOLDER / str(seed) / f"{task_name(task, variant)}_{layout}.json"
 
 
-def render_official_task_prompt(task_config: dict) -> tuple[str, str, str]:
+def official_task_prompt(task_config):
     document = task_config.get("official_task_documentation")
     if not isinstance(document, dict):
-        raise ValueError("Task config must include official_task_documentation")
-    for field in ("version", "source", "description"):
+        raise ValueError("A task configuration needs official_task_documentation")
+    for field in DOCUMENT_FIELDS:
         if not isinstance(document.get(field), str) or not document[field].strip():
-            raise ValueError(f"official_task_documentation.{field} must be non-empty")
-    scoring = document.get("scoring")
-    if not isinstance(scoring, list) or not scoring:
-        raise ValueError("official_task_documentation.scoring must be non-empty")
-    score_lines = []
-    for row in scoring:
-        if not isinstance(row, dict) or set(row) != {"score", "condition"}:
-            raise ValueError("Each scoring row must contain score and condition")
-        score_lines.append(f"- Score {row['score']}: {row['condition']}")
-    sections = [f"OFFICIAL DESCRIPTION:\n{document['description'].strip()}"]
+            raise ValueError(f"official_task_documentation.{field} is empty")
+    rows = document.get("scoring")
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("official_task_documentation.scoring is empty")
+    if any(not isinstance(row, dict) or set(row) != {"score", "condition"} for row in rows):
+        raise ValueError("A scoring row holds exactly score and condition")
+    parts = [("DESCRIPTION", document["description"].strip())]
     if document.get("comment"):
-        sections.append(f"OFFICIAL COMMENT:\n{document['comment'].strip()}")
-    sections.append("OFFICIAL SCORING:\n" + "\n".join(score_lines))
-    return document["version"], document["source"], "\n\n".join(sections)
+        parts.append(("COMMENT", document["comment"].strip()))
+    parts.append(("SCORING", "\n".join(f"- Score {row['score']}: {row['condition']}" for row in rows)))
+    text = "\n\n".join(f"OFFICIAL {title}:\n{body}" for title, body in parts)
+    return document["version"], document["source"], text

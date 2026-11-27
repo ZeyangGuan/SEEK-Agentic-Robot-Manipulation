@@ -15,8 +15,8 @@ from seek.policy.experience_control import GUIDANCE as EXPERIENCE_GUIDANCE
 from seek.policy.experience_access import (GUIDANCE as ACCESS_GUIDANCE,LOOKUP_LIMIT,CONTEXT_LOOKUP_LIMIT,
     recall_tool,lookup,validate_lookup_arguments,is_context_lookup,available_ids,error_records,attach_teacher_evidence)
 from seek.policy.candidate_conditions import GUIDANCE as CONDITION_GUIDANCE
-from seek.policy.dialogue_policy import (canonical_tool_history, ARM_WORKSPACE_GUIDANCE,
-    ARM_POSTURE_GUIDANCE, GRIPPER_GUIDANCE)
+from seek.policy.dialogue_policy import canonical_tool_history
+from seek.policy.robot_prompt import ARM_WORKSPACE_GUIDANCE, ARM_POSTURE_GUIDANCE, GRIPPER_GUIDANCE
 from seek.policy.boundary_learning import (GUIDANCE as BOUNDARY_GUIDANCE, boundary_evidence,
     boundary_index, selected_boundary_view, load_contexts, selected_steps, read_observations, image_parts)
 from seek.policy.review_replay import replay_tool, replay

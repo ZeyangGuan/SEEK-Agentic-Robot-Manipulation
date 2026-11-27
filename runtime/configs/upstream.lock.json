@@ -7,7 +7,7 @@
       "url": "https://github.com/RoboDojo-Benchmark/RoboDojo.git",
       "base": "726e9aabfaa642203722eb126f5eaf0f37f3e1ad",
       "patch": "setup/robodojo_integration.patch",
-      "commit": "f511b3cb3c04d38b13829dca049a784105e31306"
+      "commit": "4ef51fd5904f80d6e8848154fe88476c290fde8a"
     },
     {
       "name": "XPolicyLab",
@@ -28,5 +28,5 @@
       "commit": "895c6517243f8cb091c73c018c8167192d39599a"
     }
   ],
-  "integration": "Packages are loaded in place. RoboDojo is the public commit in \"base\" plus the SEEK integration patch (execution-side IK continuity guard, camera validation, external asset paths, and the articulation drive-target reset of upstream RoboDojo pull request #48); setup/prepare.py applies it and reproduces the commit in \"commit\"."
+  "integration": "Packages are loaded in place. RoboDojo is the public commit in \"base\" plus the SEEK integration patch (hooks for the IK continuity guard and camera validation, external asset and result paths, and the articulation drive-target reset of upstream RoboDojo pull request #48); setup/prepare.py applies it and reproduces the commit in \"commit\"."
 }

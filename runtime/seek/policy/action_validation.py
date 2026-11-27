@@ -7,11 +7,13 @@ ROW_SIZE = 14
 TOLERANCE = 1e-6
 
 
-def _quat_mul(a, b):
-    aw, ax, ay, az = a
-    bw, bx, by, bz = b
-    return np.array([aw*bw-ax*bx-ay*by-az*bz, aw*bx+ax*bw+ay*bz-az*by,
-                     aw*by-ax*bz+ay*bw+az*bx, aw*bz+ax*by-ay*bx+az*bw])
+def _compose(first, second):
+    w1, x1, y1, z1 = first
+    w2, x2, y2, z2 = second
+    return np.array([w1*w2 - x1*x2 - y1*y2 - z1*z2,
+                     w1*x2 + x1*w2 + y1*z2 - z1*y2,
+                     w1*y2 - x1*z2 + y1*w2 + z1*x2,
+                     w1*z2 + x1*y2 - y1*x2 + z1*w2])
 
 
 def _check_gripper(value):
@@ -26,7 +28,7 @@ def _apply_delta(previous, delta):
     angle = float(np.linalg.norm(delta[3:]))
     scale = np.sin(angle/2)/angle if angle > 1e-10 else 0.5
     rotation = np.r_[np.cos(angle/2), delta[3:] * scale]
-    return np.r_[previous[:3] + delta[:3], _quat_mul(rotation, previous[3:])].astype(np.float32)
+    return np.r_[previous[:3] + delta[:3], _compose(rotation, previous[3:])].astype(np.float32)
 
 
 def _normalize_pose(pose):

@@ -26,8 +26,8 @@ cp setup/seek.env.example setup/seek.env
 `setup/prepare.py` clones the third-party packages pinned in
 `configs/upstream.lock.json` (RoboDojo, XPolicyLab, Isaac Lab, cuRobo) into
 `third_party/`. RoboDojo is taken from its public repository at the pinned commit
-and patched with `setup/robodojo_integration.patch`, which adds the execution-side
-IK continuity guard, camera validation, and external asset paths, and carries the
+and patched with `setup/robodojo_integration.patch`, which adds the hooks for
+the IK continuity guard and camera validation, external asset and result paths, and the
 upstream fix that pushes the restored drive targets of articulated objects to PhysX
 on reset (RoboDojo pull request #48); the script checks that the result is the
 commit recorded in the lock file. Use

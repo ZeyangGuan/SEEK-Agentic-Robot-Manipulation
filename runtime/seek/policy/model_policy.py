@@ -1,16 +1,14 @@
-from __future__ import annotations
-
-import base64
 import json
 import os
-from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 import numpy as np
 from PIL import Image
+
 from .action_feedback import tracking_receipt
-from .provider_compat import validate_api_mode, validate_endpoint
+from .observation_images import jpeg_url
+
 
 CAMERAS = ("cam_head", "cam_left_wrist", "cam_right_wrist")
 STATE_KEYS = (
@@ -20,99 +18,94 @@ STATE_KEYS = (
     "left_gripper_aperture", "right_gripper_aperture",
     "left_gripper_joint_positions", "right_gripper_joint_positions",
 )
+ARCHIVE_QUALITY = 90
+DEFAULT_TRACE_ROOT = "eval_result/model_traces"
 
 
 def plain(value):
-    if isinstance(value, np.ndarray):
+    if isinstance(value, (np.ndarray, np.generic)):
         return value.tolist()
-    if isinstance(value, np.generic):
-        return value.item()
     if isinstance(value, dict):
-        return {k: plain(v) for k, v in value.items()}
+        return {key: plain(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [plain(v) for v in value]
+        return [plain(item) for item in value]
     return value
 
 
-def image_url(image):
-    array = np.asarray(image)
-    if array.ndim != 3 or array.shape[-1] not in (3, 4):
-        raise ValueError("Camera must supply an HWC RGB/RGBA array")
-    buf = BytesIO()
-    Image.fromarray(array[:, :, :3].astype(np.uint8)).save(buf, format="JPEG", quality=90)
-    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+def frame_url(frame):
+    pixels = np.asarray(frame)
+    if pixels.ndim != 3 or pixels.shape[-1] not in (3, 4):
+        raise ValueError("A camera frame is an HxWx3 or HxWx4 array")
+    return jpeg_url(Image.fromarray(pixels[:, :, :3].astype(np.uint8)), quality=ARCHIVE_QUALITY)
 
 
 class Model:
     def __init__(self, model_cfg):
-        self.api_mode = validate_api_mode(
-            os.environ.get("ASTRA_API_MODE") or model_cfg.get("api_mode", "responses"))
-        self.endpoint = validate_endpoint(
-            self.api_mode,
-            os.environ.get("ASTRA_ENDPOINT") or model_cfg.get("endpoint")
-            or "https://api.openai.com/v1/responses",
-        )
         self.model_name = model_cfg.get("model", "gpt-6-astra")
-        self.api_key = os.environ.get("ASTRA_API_KEY")
-        if not self.api_key:
-            raise RuntimeError("Set SEEK_MODEL_KEY before starting the policy")
-        self.effort = os.environ.get("ASTRA_REASONING_EFFORT", model_cfg.get("reasoning_effort", "xhigh"))
-        self.max_chunk = int(model_cfg.get("max_chunk", 32))
-        configured_output = model_cfg.get("max_output_tokens")
-        self.max_output = int(configured_output) if configured_output is not None else None
-        self.log_root = Path(os.environ.get("ASTRA_LOG_DIR", "eval_result/model_traces"))
+        self.log_root = Path(os.environ.get("ASTRA_LOG_DIR", DEFAULT_TRACE_ROOT))
         self.reset()
 
     def reset(self):
         self.archive = {}
-        self.head_calibration_context = None
         self.ledger = []
         self.step = None
+        self.head_calibration_context = None
         self.episode_id = uuid4().hex
         self.episode_dir = self.log_root / self.episode_id
 
     def _log(self, name, value):
         self.episode_dir.mkdir(parents=True, exist_ok=True)
+        row = json.dumps(plain(value), ensure_ascii=False, allow_nan=False)
         with (self.episode_dir / name).open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(plain(value), ensure_ascii=False, allow_nan=False) + "\n")
+            stream.write(row + "\n")
 
     def update_obs(self, obs):
         meta = obs.get("model_meta", {})
         step = int(meta.get("step", len(self.archive)))
-        if step in self.archive:
-            self.step = step
-            return
-        if meta.get('head_calibration_context') is not None:
-            if self.head_calibration_context is not None or self.archive:
-                raise ValueError('Head calibration can only initialize an empty episode')
-            self.head_calibration_context = plain(meta['head_calibration_context'])
-            self._log('head_calibration_context.jsonl', self.head_calibration_context)
-        entry = {
-            "step": step,
-            "state": {k: plain(obs.get("state", {})[k]) for k in STATE_KEYS if k in obs.get("state", {})},
-            "instruction": str(obs.get("instruction", "")),
-            "images": {name: image_url(obs["vision"][name]["color"]) for name in CAMERAS},
-        }
-
-        entry['camera_calibration'] = {name: plain(obs['vision'][name]['rgb_calibration'])
-            for name in CAMERAS if 'rgb_calibration' in obs['vision'][name]}
-        entry['perception_mode'] = 'rgb_only'
-        if meta.get('max_episode_steps') is not None:
-            entry['max_episode_steps'] = int(meta['max_episode_steps'])
-        if (meta.get('executed_action') is not None
-                and meta.get('ik_execution_checks') is not None):
-            entry['ik_execution_checks'] = plain(meta['ik_execution_checks'])
-        if meta.get('execution_receipt') is not None:
-            entry['execution_receipt'] = plain(meta['execution_receipt'])
-        self.archive[step] = entry
+        known = step in self.archive
+        if not known:
+            self._accept_calibration(meta.get("head_calibration_context"))
+            self.archive[step] = self._entry(step, obs, meta)
         self.step = step
-        if meta.get("executed_action") is not None:
-            submitted = plain(meta["executed_action"])
-            self.ledger.append({"resulting_step": step, "executed_action": submitted,
-                                "state_after": entry["state"],
-                                "tracking": tracking_receipt(submitted, entry["state"])})
-            if meta.get("controller_event"):
-                self.ledger[-1]["controller_event"] = plain(meta["controller_event"])
-            if meta.get('execution_receipt') is not None:
-                self.ledger[-1]['execution_receipt'] = plain(meta['execution_receipt'])
-        self._log("observations.jsonl", entry)
+        if not known:
+            self._record_execution(step, meta)
+            self._log("observations.jsonl", self.archive[step])
+
+    def _accept_calibration(self, context):
+        if context is None:
+            return
+        if self.head_calibration_context is not None or self.archive:
+            raise ValueError("Head calibration arrives once, before the first observation")
+        self.head_calibration_context = plain(context)
+        self._log("head_calibration_context.jsonl", self.head_calibration_context)
+
+    def _entry(self, step, obs, meta):
+        state, vision = obs.get("state", {}), obs["vision"]
+        entry = dict(
+            step=step,
+            state={key: plain(state[key]) for key in STATE_KEYS if key in state},
+            instruction=str(obs.get("instruction", "")),
+            images={name: frame_url(vision[name]["color"]) for name in CAMERAS},
+            camera_calibration={name: plain(vision[name]["rgb_calibration"]) for name in CAMERAS
+                                if "rgb_calibration" in vision[name]},
+            perception_mode="rgb_only",
+        )
+        if meta.get("max_episode_steps") is not None:
+            entry["max_episode_steps"] = int(meta["max_episode_steps"])
+        if meta.get("executed_action") is not None and meta.get("ik_execution_checks") is not None:
+            entry["ik_execution_checks"] = plain(meta["ik_execution_checks"])
+        if meta.get("execution_receipt") is not None:
+            entry["execution_receipt"] = plain(meta["execution_receipt"])
+        return entry
+
+    def _record_execution(self, step, meta):
+        if meta.get("executed_action") is None:
+            return
+        command, after = plain(meta["executed_action"]), self.archive[step]["state"]
+        row = dict(resulting_step=step, executed_action=command, state_after=after,
+                   tracking=tracking_receipt(command, after))
+        if meta.get("controller_event"):
+            row["controller_event"] = plain(meta["controller_event"])
+        if meta.get("execution_receipt") is not None:
+            row["execution_receipt"] = plain(meta["execution_receipt"])
+        self.ledger.append(row)

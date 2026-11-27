@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 CODE = Path(__file__).resolve().parents[1]
@@ -11,25 +9,29 @@ ROBODOJO = THIRD_PARTY / "RoboDojo"
 XPOLICYLAB = THIRD_PARTY / "XPolicyLab"
 ISAACLAB = THIRD_PARTY / "IsaacLab"
 CUROBO = THIRD_PARTY / "curobo"
+CONTEXTS = ("policy", "sim")
 
 
-def data_root(value=None) -> Path:
-    return Path(value or os.environ.get("SEEK_DATA_ROOT") or CODE / "data").expanduser().resolve()
+def _root(explicit, variable, folder):
+    return Path(explicit or os.environ.get(variable) or CODE / folder).expanduser().resolve()
 
 
-def results_root(value=None) -> Path:
-    return Path(value or os.environ.get("SEEK_RESULTS_ROOT") or CODE / "results").expanduser().resolve()
+def data_root(value=None):
+    return _root(value, "SEEK_DATA_ROOT", "data")
 
 
-def python_paths(context: str = "policy") -> list[str]:
-    if context not in ("policy", "sim"):
-        raise ValueError("context must be policy or sim")
-    owners = [XPOLICYLAB, ROBODOJO] if context == "policy" else [ROBODOJO, XPOLICYLAB]
-    paths = [CODE, THIRD_PARTY, *owners, CUROBO]
-    paths.extend(path for path in sorted((ISAACLAB / "source").glob("*")) if path.is_dir())
-    return [str(path) for path in paths]
+def results_root(value=None):
+    return _root(value, "SEEK_RESULTS_ROOT", "results")
 
 
-def configure_imports(context: str = "policy") -> None:
-    paths = python_paths(context)
-    sys.path[:] = paths + [path for path in sys.path if path not in paths]
+def python_paths(context="policy"):
+    if context not in CONTEXTS:
+        raise ValueError(f"Unknown import context: {context}")
+    packages = [XPOLICYLAB, ROBODOJO] if context == "policy" else [ROBODOJO, XPOLICYLAB]
+    extensions = [entry for entry in sorted((ISAACLAB / "source").glob("*")) if entry.is_dir()]
+    return [str(entry) for entry in (CODE, THIRD_PARTY, *packages, CUROBO, *extensions)]
+
+
+def configure_imports(context="policy"):
+    wanted = python_paths(context)
+    sys.path[:] = wanted + [entry for entry in sys.path if entry not in wanted]
