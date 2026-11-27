@@ -377,8 +377,13 @@ def start(interpreter, command, conda_exe, log, env):
                             stderr=subprocess.STDOUT, start_new_session=True)
 
 
-def interrupt_on_sigterm():
-    signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
+def raise_interrupt(*_):
+    raise KeyboardInterrupt
+
+
+def accept_interrupts():
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, raise_interrupt)
 
 
 def supervise(args, plan):
@@ -388,7 +393,7 @@ def supervise(args, plan):
     policy = evaluator = None
     started = time.monotonic()
     status, rc = "failed", 1
-    interrupt_on_sigterm()
+    accept_interrupts()
     print(f"Run: {out}", flush=True)
     try:
         if not args.capture_only:

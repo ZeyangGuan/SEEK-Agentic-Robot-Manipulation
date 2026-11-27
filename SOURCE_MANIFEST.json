@@ -123,7 +123,7 @@
     "runtime/seek/policy/visual_measurements.py": "6a7c90d023cfd9b9b506c80c6607927a55c46faf5a8b98c3e1e8b6e92fec17d1",
     "runtime/seek/policy_server.py": "6160d1d2e39b5a6c707df0b01528c07c195efbf9c54403d0f5c88a193d0ab4d6",
     "runtime/seek/rollout.py": "647684d071335794a3d6bb74ae6409abe3b0907b0c4d4f11f306cc1fe1846263",
-    "runtime/seek/run.py": "7ea79766d4edbdda72c1266098052d7c7d91c0d1fe18f9bfd9af1495b8a5346f",
+    "runtime/seek/run.py": "3a01c6789357264df0807dea598846392746b7096011fcaf8cc6ef7bafdac12b",
     "runtime/seek/upstream.py": "7ede0524e2fbd5e13f1aed633339121aef49a75c43b22570aa4898c3c64ca1a1",
     "runtime/setup/constraints-sim.txt": "77ef10ea33491857a276099c95340763476bb8976f911e07f54c65a36cc1c430",
     "runtime/setup/fetch_assets.py": "ceccd8975752b4a44fc6f03d70141d77e2ea216421b28bff7da8bd86b66d79c3",
